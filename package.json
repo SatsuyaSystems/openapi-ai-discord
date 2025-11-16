@@ -5,7 +5,8 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "test:memory": "node test-memory-system.js"
   },
   "keywords": ["discord", "bot", "openwebui", "roleplay"],
   "author": "",

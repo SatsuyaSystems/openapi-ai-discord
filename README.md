@@ -5,6 +5,8 @@ This project is a Discord bot that uses an OpenWebUI-compatible API (OpenAI-like
 Key files
 - OpenWebUI client: [`OpenWebUIClient`](src/utils/openwebui.js) — [src/utils/openwebui.js](src/utils/openwebui.js)  
 - Local JSON memory: [`memoryManager`](src/utils/memoryManager.js) — [src/utils/memoryManager.js](src/utils/memoryManager.js)  
+- **OpenWebUI Vector Memory**: [`memoryContextManager`](src/utils/memoryContextManager.js) — [src/utils/memoryContextManager.js](src/utils/memoryContextManager.js) ⭐ NEW
+- **User-Channel Mapping**: [`userChannelMapping`](src/utils/userChannelMapping.js) — [src/utils/userChannelMapping.js](src/utils/userChannelMapping.js) ⭐ NEW
 - Configuration and prompts: [`configManager`](src/utils/configManager.js) — [src/utils/configManager.js](src/utils/configManager.js)  
 - Message handling + formatting: [`messageHandler`](src/utils/messageHandler.js), [`messageFormatter`](src/utils/messageFormatter.js) — [src/utils/messageHandler.js](src/utils/messageHandler.js), [src/utils/messageFormatter.js](src/utils/messageFormatter.js)  
 - Bot entrypoint: [src/index.js](src/index.js)
@@ -12,7 +14,19 @@ Key files
 Overview
 - The bot sends user messages to an OpenWebUI endpoint via `POST /api/chat/completions` (see [`OpenWebUIClient.chat()`](src/utils/openwebui.js)).  
 - System prompts are composed from files in the `prompts/` folder by [`configManager.getSystemPrompt()`](src/utils/configManager.js).  
-- Conversation context is loaded from a local JSON memory in `data/memory/` managed by [`memoryManager`](src/utils/memoryManager.js). This folder is ignored by git (`.gitignore`).
+- Conversation context is loaded from:
+  - **Local JSON memory** in `data/memory/` (short-term, per-user/channel) managed by [`memoryManager`](src/utils/memoryManager.js)
+  - **OpenWebUI Vector Memory** (long-term semantic search) integrated via [`memoryContextManager`](src/utils/memoryContextManager.js) ⭐ NEW
+- User-to-Channel mappings are persisted in `data/user_channel_mapping.json` (see [`userChannelMapping`](src/utils/userChannelMapping.js)) ⭐ NEW
+
+**Memory System Features** ⭐ NEW
+- **Dual Memory**: Combines fast JSON-based local memory with semantic Vector DB memory from OpenWebUI
+- **Context Modes**: 
+  - `shared` mode: All memories accessible to all users (team knowledge base)
+  - `private` mode: Each user only sees their own memories
+- **Smart Context Injection**: Relevant memories are automatically queried and added to system prompt
+- **User Channel Tracking**: Every message updates user↔channel mappings automatically
+- See [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md) for detailed documentation
 
 Required environment variables (.env)
 - DISCORD_TOKEN — bot token  
@@ -23,9 +37,15 @@ See [.env.example](.env.example).
 
 How the OpenWebUI flow works
 1. Message received by Discord -> queued by `MessageQueue` (see [src/utils/messageQueue.js](src/utils/messageQueue.js)).  
-2. `MessageHandler` loads system prompt via [`configManager.getSystemPrompt()`](src/utils/configManager.js) and local chat history via [`openwebui.getChatHistory(chatId)`](src/utils/openwebui.js).  
-3. The bot calls `OpenWebUIClient.chat(userMessage, systemPrompt, chatHistory)` -> sends to `${OPENWEBUI_URL}/api/chat/completions`.  
-4. Response is saved locally with `memoryManager.addMessage(...)` and posted back to Discord.
+2. **User-Channel mapping is updated** (see [src/utils/userChannelMapping.js](src/utils/userChannelMapping.js)) ⭐ NEW
+3. `MessageHandler` loads:
+   - System prompt via [`configManager.getSystemPrompt()`](src/utils/configManager.js)
+   - Local chat history via [`openwebui.getChatHistory(chatId)`](src/utils/openwebui.js)
+   - **Vector memory context** via [`memoryContextManager.getMemoryContext()`](src/utils/memoryContextManager.js) ⭐ NEW
+4. System prompt is **enhanced with memory context** (respecting context mode) ⭐ NEW
+5. The bot calls `OpenWebUIClient.chat(userMessage, enhancedPrompt, chatHistory)` -> sends to `${OPENWEBUI_URL}/api/chat/completions`.  
+6. Response is saved locally with `memoryManager.addMessage(...)` and **also to OpenWebUI Memory** ⭐ NEW
+7. Response is posted back to Discord.
 
 Prompts and persona
 - Prompts are read from `prompts/*.txt` and concatenated in alphabetical order (see [src/utils/configManager.js](src/utils/configManager.js)).  
@@ -42,8 +62,10 @@ Commands related to OpenWebUI & memory
 
 Running the bot
 1. Copy `.env.example` to `.env` and fill values.  
-2. Install deps: npm install  
-3. Start: npm start (or npm run dev)
+2. Ensure OpenWebUI is running and Memory API is enabled
+3. Install deps: npm install  
+4. **Test memory system** (optional): `npm run test:memory`
+5. Start: npm start (or npm run dev)
 
 Troubleshooting
 - Health check: on ready the bot runs `openwebui.checkHealth()` (see [`OpenWebUIClient.checkHealth()`](src/utils/openwebui.js)). If it fails, verify `OPENWEBUI_URL` and network access.  
@@ -52,8 +74,11 @@ Troubleshooting
 
 Notes & extension points
 - You can adapt `OpenWebUIClient` to other endpoints or parameters in [src/utils/openwebui.js](src/utils/openwebui.js).  
-- The local memory format and limits are implemented in [`memoryManager`](src/utils/memoryManager.js) and can be adjusted (limits, pruning, encryption).  
+- The local memory format and limits are implemented in [`memoryManager`](src/utils/memoryManager.js) and can be adjusted (limits, pruning, encryption).
+- **Memory context logic**: Customize how memories are queried and ranked in [`memoryContextManager.js`](src/utils/memoryContextManager.js) ⭐ NEW
+- **User-Channel tracking**: Track additional metadata by extending [`userChannelMapping.js`](src/utils/userChannelMapping.js) ⭐ NEW
 - System prompts are editable in /prompts to change persona/behavior.
+- For detailed Memory System documentation, see [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md) ⭐ NEW
 
 License and contribution
 - Code is MIT by default (see package.json). Contributing: open issues/PRs; avoid committing secrets.

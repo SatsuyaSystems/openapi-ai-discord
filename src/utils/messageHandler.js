@@ -2,12 +2,14 @@ const { ChannelType } = require('discord.js');
 
 /**
  * MessageHandler
- * Processes queued Discord messages, sends them to OpenWebUI, stores results in local memory, and replies.
+ * Processes queued Discord messages, sends them to OpenWebUI via Chat API
+ * Each Discord user gets their own Chat for persistent context
  */
 class MessageHandler {
-  constructor(openwebui, configManager) {
+  constructor(openwebui, configManager, chatManager) {
     this.openwebui = openwebui;
     this.configManager = configManager;
+    this.chatManager = chatManager;
     this._getChannelFn = null; // injected function to fetch channels
   }
 
@@ -48,37 +50,43 @@ class MessageHandler {
 
       const { formatted, content } = this.formatMessageWithMetadata(message);
 
-      const contextMode = queueItem.isDM ? 'private' : this.configManager.getContextMode();
       const systemPrompt = this.configManager.getSystemPrompt();
-      const webUIConfig = this.configManager.getOpenWebUIConfig();
 
-      const chatInfo = this.openwebui.getOrCreateChat(
+      // Get or create user's chat
+      const chat = await this.chatManager.getOrCreateChat(
         message.author.id,
-        message.author.username,
-        contextMode
+        message.author.username
       );
 
-      console.log(`💬 Chat ID: ${chatInfo.id} (${chatInfo.title})`);
+      console.log(`💬 Using chat: ${chat.id} for ${message.author.username}`);
 
-      const chatHistory = this.openwebui.getChatHistory(chatInfo.id);
-      console.log(`📚 Loaded ${chatHistory.length} messages from local memory`);
+      // Load chat history from OpenWebUI
+      let chatHistory = [];
+      try {
+        chatHistory = await this.chatManager.getChatHistory(message.author.id);
+        console.log(`📖 Loaded ${chatHistory.length} previous messages from chat`);
+      } catch (error) {
+        console.warn('⚠️ Failed to load chat history:', error.message);
+      }
 
-      const response = await this.openwebui.chat(formatted, systemPrompt, chatHistory);
+      // Combine into system prompt
+      const enhancedSystemPrompt = this.buildEnhancedPrompt(
+        systemPrompt,
+        chatHistory,
+        message.author.id
+      );
 
-      // persist messages
-      this.openwebui.saveMessage(chatInfo.id, 'user', content, {
-        author: message.author.username,
-        authorId: message.author.id,
-        channel: message.channel.name || message.channelId,
-        timestamp: message.createdTimestamp,
-      });
+      // Send to OpenWebUI with full chat history AND chat ID for persistence
+      const response = await this.openwebui.chat(formatted, enhancedSystemPrompt, chatHistory, chat.id);
 
-      this.openwebui.saveMessage(chatInfo.id, 'assistant', response, {
-        model: webUIConfig.model,
-        timestamp: Date.now(),
-      });
+      // Cache the user message locally for next request
+      await this.chatManager.addMessage(message.author.id, 'user', formatted);
+      
+      // Cache the bot response locally for next request  
+      await this.chatManager.addMessage(message.author.id, 'assistant', response);
 
-      console.log('💾 Messages saved to local memory');
+      // Messages are automatically saved by OpenWebUI when we pass chat_id
+      console.log('💾 Messages cached and will be persisted by OpenWebUI');
 
       const formattedResponses = this.formatResponseForDiscord(response);
 
@@ -109,8 +117,7 @@ class MessageHandler {
         }
       }
 
-      const stats = this.openwebui.getChatStats(chatInfo.id);
-      console.log('📊 Chat statistics:', stats);
+      console.log('✅ Message processed and replied');
     } catch (error) {
       console.error('❌ Error processing message:', error.message);
       try {
@@ -156,6 +163,33 @@ class MessageHandler {
     });
     if (current) chunks.push(current.trim());
     return chunks;
+  }
+
+  /**
+   * Build enhanced system prompt with chat history context
+   * @param {string} systemPrompt - base system prompt
+   * @param {array} chatHistory - previous messages from chat
+   * @param {string} userId - user ID for context
+   * @returns {string} enhanced prompt
+   */
+  buildEnhancedPrompt(systemPrompt, chatHistory, userId) {
+    let enhanced = systemPrompt;
+
+    if (chatHistory && chatHistory.length > 0) {
+      const recentMessages = chatHistory.slice(-5); // Last 5 messages
+      const contextSummary = recentMessages
+        .filter(m => m.role === 'user')
+        .map(m => `- ${m.content.substring(0, 100)}`)
+        .join('\n');
+
+      if (contextSummary) {
+        enhanced += `\n\n[Recent Chat Context]\n${contextSummary}`;
+      }
+    }
+
+    enhanced += `\n\n[Note: This is a persistent per-user chat. You maintain context across all conversations with this user.]`;
+
+    return enhanced;
   }
 
   // channel getter is injected from index.js

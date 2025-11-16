@@ -7,6 +7,7 @@ const { loadCommands, registerCommands } = require('./utils/commandLoader');
 const OpenWebUIClient = require('./utils/openwebui');
 const MessageQueue = require('./utils/messageQueue');
 const MessageHandler = require('./utils/messageHandler');
+const createChatManager = require('./utils/chatManager');
 const { formatMessageWithMetadata, formatResponseForDiscord } = require('./utils/messageFormatter');
 
 // Initialization
@@ -33,6 +34,9 @@ let openwebui;
 // Message Handler
 let messageHandler;
 
+// Chat Manager
+let chatManager;
+
 // Command Collection
 let commands;
 
@@ -56,13 +60,22 @@ client.once('ready', async () => {
       console.warn(`⚠️ OpenWebUI connection failed!`);
     }
 
-    // Initialize Message Handler (only openwebui + configManager required)
-    messageHandler = new MessageHandler(openwebui, configManager);
+    // Initialize Chat Manager
+    const openwebuiUserId = process.env.OPENWEBUI_USER_ID;
+    if (!openwebuiUserId) {
+      console.warn('⚠️ OPENWEBUI_USER_ID not set in .env - Chat Manager will not work');
+    } else {
+      chatManager = createChatManager(openwebui, openwebuiUserId);
+      console.log(`✅ Chat Manager initialized for user ${openwebuiUserId}`);
+    }
+
+    // Initialize Message Handler with Chat Manager
+    messageHandler = new MessageHandler(openwebui, configManager, chatManager);
     messageHandler.setChannelGetter((channelId) => client.channels.fetch(channelId));
     
     console.log(`✅ Message handler initialized`);
     console.log(`📨 Message queue running (max 3 retries, 5s delay)`);
-    console.log(`🔐 Chat context will be loaded from local memory`);
+    console.log(`💬 Chat System active - Per-user persistent chats enabled`);
     
   } catch (error) {
     console.error('❌ Error loading OpenWebUI config:', error);
@@ -88,13 +101,13 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   try {
-    await command.execute(interaction);
+    await command.execute(interaction, { messageQueue, openwebui, chatManager });
   } catch (error) {
     console.error('❌ Error executing command:', error);
     
     const reply = {
       content: '❌ There was an error executing this command!',
-      ephemeral: true
+      flags: 64 // ephemeral flag
     };
     
     if (interaction.replied) {
