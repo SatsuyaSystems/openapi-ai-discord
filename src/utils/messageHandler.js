@@ -161,4 +161,3 @@ class MessageHandler {
 }
 
 module.exports = MessageHandler;
-        throw error;
