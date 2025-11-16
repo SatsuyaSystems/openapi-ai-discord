@@ -228,6 +228,22 @@ function setKeywordTrigger(trigger) {
 }
 
 /**
+ * Return whether bot is in admin-only mode
+ */
+function getAdminOnly() {
+  return process.env.ADMIN_ONLY === 'true';
+}
+
+/**
+ * Enable/disable admin-only mode
+ */
+function setAdminOnly(enabled) {
+  const value = enabled ? 'true' : 'false';
+  setEnvVariable('ADMIN_ONLY', value);
+  return true;
+}
+
+/**
  * Load the system prompt from all .txt files in the /prompts folder
  * @returns {string} the combined system prompt
  */
@@ -272,5 +288,7 @@ module.exports = {
   setEnvVariable,
   getKeywordConfig,
   setKeywordEnabled,
-  setKeywordTrigger
+  setKeywordTrigger,
+  getAdminOnly,
+  setAdminOnly
 };

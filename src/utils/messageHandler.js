@@ -25,6 +25,24 @@ class MessageHandler {
         throw new Error(`Message not found: ${queueItem.messageId}`);
       }
 
+      // If admin-only mode is active, block non-admin users with a maintenance notice
+      try {
+        const adminOnly = this.configManager.getAdminOnly && this.configManager.getAdminOnly();
+        const authorId = message.author.id;
+        if (adminOnly && !this.configManager.isAdmin(authorId)) {
+          const notice = '⚠️ The bot is currently in Admin-only mode for maintenance. Please try again later.';
+          if (message.channel && (message.channel.type === ChannelType.DM || message.channel.type === 1 || String(message.channel.type).toUpperCase() === 'DM')) {
+            await channel.send({ content: notice });
+          } else {
+            await message.reply({ content: notice, allowedMentions: { repliedUser: false } });
+          }
+          console.log(`⛔ Message from ${authorId} blocked due to Admin-only mode`);
+          return;
+        }
+      } catch (err) {
+        console.error('❌ Error checking admin-only mode:', err?.message || err);
+      }
+
       console.log(`📝 Message found: "${message.content.substring(0, 50)}..."`);
       await channel.sendTyping();
 
