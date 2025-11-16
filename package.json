@@ -1,7 +1,7 @@
 {
   "name": "discord-openwebui-bot",
   "version": "1.0.0",
-  "description": "Discord Bot für OpenWebUI mit Roleplay-Support",
+  "description": "Discord bot for OpenWebUI with roleplay support",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

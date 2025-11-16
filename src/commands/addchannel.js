@@ -4,18 +4,18 @@ const configManager = require('../utils/configManager');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('addchannel')
-    .setDescription('Fügt einen Kanal hinzu, in dem der Bot auf alle Nachrichten hört')
+    .setDescription('Add a listener channel where the bot will read messages')
     .addChannelOption(option =>
       option.setName('channel')
-        .setDescription('Der Kanal, der hinzugefügt werden soll')
+        .setDescription('Channel to add')
         .setRequired(true)
     ),
   
   async execute(interaction) {
-    // Prüfe ob User Admin ist
+    // Check admin permission
     if (!configManager.isAdmin(interaction.user.id)) {
       return interaction.reply({
-        content: '❌ Du hast keine Berechtigung für diesen Command!',
+        content: '❌ You do not have permission to run this command!',
         ephemeral: true
       });
     }
@@ -26,12 +26,12 @@ module.exports = {
     
     if (added) {
       return interaction.reply({
-        content: `✅ Kanal ${channel} wurde hinzugefügt! Der Bot hört nun auf alle Nachrichten hier.\n📝 **.env wurde aktualisiert**`,
+        content: `✅ Channel ${channel} added. The bot will now listen here.\n📝 **.env updated**`,
         ephemeral: true
       });
     } else {
       return interaction.reply({
-        content: `⚠️ Kanal ${channel} ist bereits in der Liste!`,
+        content: `⚠️ Channel ${channel} is already in the list!`,
         ephemeral: true
       });
     }

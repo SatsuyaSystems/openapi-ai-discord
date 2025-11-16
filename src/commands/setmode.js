@@ -4,22 +4,22 @@ const configManager = require('../utils/configManager');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('setmode')
-    .setDescription('Wechselt zwischen Shared und Private Kontext-Modus')
+    .setDescription('Switch between shared and private context modes')
     .addStringOption(option =>
       option.setName('mode')
-        .setDescription('Der Modus: shared (alle in einem Kontext) oder private (jeder eigener Kontext)')
+        .setDescription('Mode: shared (all share one context) or private (each user has own context)')
         .setRequired(true)
         .addChoices(
-          { name: 'Shared (alle zusammen)', value: 'shared' },
-          { name: 'Private (jeder einzeln)', value: 'private' }
+          { name: 'Shared (all together)', value: 'shared' },
+          { name: 'Private (individual)', value: 'private' }
         )
     ),
   
   async execute(interaction) {
-    // Prüfe ob User Admin ist
+    // Check admin permission
     if (!configManager.isAdmin(interaction.user.id)) {
       return interaction.reply({
-        content: '❌ Du hast keine Berechtigung für diesen Command!',
+        content: '❌ You do not have permission to run this command!',
         ephemeral: true
       });
     }
@@ -30,16 +30,16 @@ module.exports = {
     
     if (success) {
       const modeText = mode === 'shared' 
-        ? '👥 Alle User teilen sich einen Chat-Kontext'
-        : '🔒 Jeder User hat seinen eigenen Chat-Kontext';
+        ? '👥 All users share a chat context'
+        : '🔒 Each user has a private chat context';
       
       return interaction.reply({
-        content: `✅ Modus geändert!\n${modeText}\n📝 **.env wurde aktualisiert**`,
+        content: `✅ Mode changed!\n${modeText}\n📝 **.env updated**`,
         ephemeral: true
       });
     } else {
       return interaction.reply({
-        content: '❌ Fehler beim Ändern des Modus!',
+        content: '❌ Failed to change mode!',
         ephemeral: true
       });
     }

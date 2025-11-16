@@ -4,18 +4,18 @@ const configManager = require('../utils/configManager');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('removechannel')
-    .setDescription('Entfernt einen Kanal aus der Bot-Listener-Liste')
+    .setDescription('Remove a channel from the bot listener list')
     .addChannelOption(option =>
       option.setName('channel')
-        .setDescription('Der Kanal, der entfernt werden soll')
+        .setDescription('Channel to remove')
         .setRequired(true)
     ),
   
   async execute(interaction) {
-    // Prüfe ob User Admin ist
+    // Check admin permission
     if (!configManager.isAdmin(interaction.user.id)) {
       return interaction.reply({
-        content: '❌ Du hast keine Berechtigung für diesen Command!',
+        content: '❌ You do not have permission to run this command!',
         ephemeral: true
       });
     }
@@ -26,12 +26,12 @@ module.exports = {
     
     if (removed) {
       return interaction.reply({
-        content: `✅ Kanal ${channel} wurde entfernt!\n📝 **.env wurde aktualisiert**`,
+        content: `✅ Channel ${channel} removed.\n📝 **.env updated**`,
         ephemeral: true
       });
     } else {
       return interaction.reply({
-        content: `⚠️ Kanal ${channel} ist nicht in der Liste!`,
+        content: `⚠️ Channel ${channel} is not in the list!`,
         ephemeral: true
       });
     }

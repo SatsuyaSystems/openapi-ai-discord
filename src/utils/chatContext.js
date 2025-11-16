@@ -1,25 +1,25 @@
 /**
- * Speichert und verwaltet Chat-Verlauf für User
- * Unterstützt sowohl Shared-Kontext als auch Private-Kontexte
+ * Stores and manages chat context for users
+ * Supports both shared and private contexts
  */
 class ChatContextManager {
   constructor() {
-    // Shared Context für alle User
+    // Shared context for all users
     this.sharedContext = [];
     
-    // Private Kontexte für einzelne User
+    // Private contexts for individual users
     this.userContexts = new Map();
     
-    // Maximale Nachrichten pro Kontext
+    // Maximum number of messages per context
     this.maxContextLength = 20;
   }
 
   /**
-   * Fügt eine Nachricht zum Kontext hinzu
-   * @param {string} userId - Discord User ID
-   * @param {string} role - 'user' oder 'assistant'
-   * @param {string} content - Der Nachrichteninhalt
-   * @param {string} mode - 'shared' oder 'private'
+   * Add a message to the context
+   * @param {string} userId - Discord user ID
+   * @param {string} role - 'user' or 'assistant'
+   * @param {string} content - message content
+   * @param {string} mode - 'shared' or 'private'
    */
   addMessage(userId, role, content, mode = 'shared') {
     const message = {
@@ -31,7 +31,7 @@ class ChatContextManager {
 
     if (mode === 'shared') {
       this.sharedContext.push(message);
-      // Limit für Context Länge
+      // Limit for context length
       if (this.sharedContext.length > this.maxContextLength) {
         this.sharedContext = this.sharedContext.slice(-this.maxContextLength);
       }
@@ -49,9 +49,9 @@ class ChatContextManager {
   }
 
   /**
-   * Gibt den aktuellen Kontext zurück (für API)
-   * @param {string} userId - Discord User ID
-   * @param {string} mode - 'shared' oder 'private'
+   * Return the current context (for API)
+   * @param {string} userId - Discord user ID
+   * @param {string} mode - 'shared' or 'private'
    */
   getContext(userId, mode = 'shared') {
     if (mode === 'shared') {
@@ -71,21 +71,21 @@ class ChatContextManager {
   }
 
   /**
-   * Löscht den Kontext eines Users (nur bei Private-Modus)
+   * Clear a user's context (private mode only)
    */
   clearUserContext(userId) {
     this.userContexts.delete(userId);
   }
 
   /**
-   * Löscht den Shared Context
+   * Clear the shared context
    */
   clearSharedContext() {
     this.sharedContext = [];
   }
 
   /**
-   * Gibt Statistiken aus
+   * Return statistics
    */
   getStats() {
     return {

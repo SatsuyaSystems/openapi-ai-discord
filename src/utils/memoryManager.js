@@ -1,6 +1,6 @@
 /**
- * Memory Manager - JSON-basiertes Speichersystem für Chat-Nachrichten
- * Speichert Konversationen lokal als JSON und lädt sie als Kontext für OpenWebUI
+ * Memory Manager - JSON-based storage system for chat messages
+ * Stores conversations locally as JSON and provides context for the local memory
  */
 
 const fs = require('fs');
@@ -14,7 +14,7 @@ class MemoryManager {
   }
 
   /**
-   * Stelle sicher, dass Memory-Verzeichnis existiert
+   * Ensure memory directory exists
    */
   ensureMemoryDir() {
     if (!fs.existsSync(this.memoryDir)) {
@@ -23,35 +23,35 @@ class MemoryManager {
   }
 
   /**
-   * Generiere Chat-ID basierend auf Context-Mode
-   * @param {string} userId - Discord User ID
-   * @param {string} userName - Discord Username
-   * @param {string} contextMode - 'shared' oder 'private'
-   * @returns {string} Chat ID
+   * Generate chat ID based on context mode
+   * @param {string} userId - Discord user ID
+   * @param {string} userName - Discord username
+   * @param {string} contextMode - 'shared' or 'private'
+   * @returns {string} chat id
    */
   generateChatId(userId, userName, contextMode) {
     if (contextMode === 'shared') {
       return 'context_shared';
     } else {
-      // Sanitize username für Dateinamen
+      // Sanitize username for filename
       const sanitized = userName.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
       return `context_${sanitized}_${userId}`;
     }
   }
 
   /**
-   * Hole Pfad zur Chat-Datei
-   * @param {string} chatId - Chat ID
-   * @returns {string} Pfad zur JSON-Datei
+   * Get path to the chat file
+   * @param {string} chatId - chat id
+   * @returns {string} path to JSON file
    */
   getChatPath(chatId) {
     return path.join(this.memoryDir, `${chatId}.json`);
   }
 
   /**
-   * Lade oder erstelle Chat-Daten
-   * @param {string} chatId - Chat ID
-   * @returns {object} Chat-Objekt mit Nachrichten-Array
+   * Load or create chat data
+   * @param {string} chatId - chat id
+   * @returns {object} chat object with messages array
    */
   loadChat(chatId) {
     const chatPath = this.getChatPath(chatId);
@@ -61,7 +61,7 @@ class MemoryManager {
         const data = fs.readFileSync(chatPath, 'utf8');
         return JSON.parse(data);
       } catch (error) {
-        console.error(`Fehler beim Laden von Chat ${chatId}:`, error.message);
+        console.error(`Error loading chat ${chatId}:`, error.message);
         return this.createNewChat(chatId);
       }
     }
@@ -70,8 +70,7 @@ class MemoryManager {
   }
 
   /**
-   * Stelle sicher, dass eine Chat-Datei existiert auf der Festplatte.
-   * Wenn nicht vorhanden, wird eine neue Chat-Struktur angelegt und gespeichert.
+   * Ensure a chat file exists on disk. If missing, create and save a new structure.
    * @param {string} chatId
    */
   ensureChatExists(chatId) {
@@ -83,9 +82,9 @@ class MemoryManager {
   }
 
   /**
-   * Erstelle neue Chat-Struktur
-   * @param {string} chatId - Chat ID
-   * @returns {object} Neue Chat-Struktur
+   * Create new chat structure
+   * @param {string} chatId - chat id
+   * @returns {object} new chat structure
    */
   createNewChat(chatId) {
     return {
@@ -98,24 +97,24 @@ class MemoryManager {
   }
 
   /**
-   * Generiere Chat-Titel
-   * @param {string} chatId - Chat ID
-   * @returns {string} Chat-Titel
+   * Generate chat title
+   * @param {string} chatId - chat id
+   * @returns {string} chat title
    */
   getChatTitle(chatId) {
     if (chatId === 'context_shared') {
-      return '🌍 Shared Chat (Alle Nutzer)';
+      return '🌍 Shared Chat (All users)';
     }
-    // Extrahiere Username aus Chat-ID
+    // Extract username from chat ID
     const parts = chatId.replace('context_', '').split('_');
     const username = parts.slice(0, -1).join('_');
     return `👤 ${username}'s Private Chat`;
   }
 
   /**
-   * Speichere Chat
-   * @param {string} chatId - Chat ID
-   * @param {object} chatData - Chat-Daten
+   * Save chat
+   * @param {string} chatId - chat id
+   * @param {object} chatData - chat data
    */
   saveChat(chatId, chatData) {
     try {
@@ -123,16 +122,16 @@ class MemoryManager {
       chatData.updated_at = new Date().toISOString();
       fs.writeFileSync(chatPath, JSON.stringify(chatData, null, 2), 'utf8');
     } catch (error) {
-      console.error(`Fehler beim Speichern von Chat ${chatId}:`, error.message);
+      console.error(`Error saving chat ${chatId}:`, error.message);
     }
   }
 
   /**
-   * Füge Nachricht zu Chat hinzu
-   * @param {string} chatId - Chat ID
-   * @param {string} role - 'user' oder 'assistant'
-   * @param {string} content - Nachrichteninhalt
-   * @param {object} metadata - Optional: Zusätzliche Metadaten
+   * Add message to chat
+   * @param {string} chatId - chat id
+   * @param {string} role - 'user' or 'assistant'
+   * @param {string} content - message content
+   * @param {object} metadata - optional extra metadata
    */
   addMessage(chatId, role, content, metadata = {}) {
     const chat = this.loadChat(chatId);
@@ -152,9 +151,9 @@ class MemoryManager {
   }
 
   /**
-   * Hole alle Nachrichten aus Chat
-   * @param {string} chatId - Chat ID
-   * @returns {array} Array von Nachrichten
+   * Get all messages from chat
+   * @param {string} chatId - chat id
+   * @returns {array} array of messages
    */
   getMessages(chatId) {
     const chat = this.loadChat(chatId);
@@ -162,10 +161,10 @@ class MemoryManager {
   }
 
   /**
-   * Hole letzte N Nachrichten (für Kontext)
-   * @param {string} chatId - Chat ID
-   * @param {number} limit - Anzahl der Nachrichten (default: 10)
-   * @returns {array} Array der letzten N Nachrichten
+   * Get last N messages (for context)
+   * @param {string} chatId - chat id
+   * @param {number} limit - number of messages (default: 10)
+   * @returns {array} array of last N messages
    */
   getRecentMessages(chatId, limit = 10) {
     const messages = this.getMessages(chatId);
@@ -173,9 +172,9 @@ class MemoryManager {
   }
 
   /**
-   * Konvertiere Chat-Nachrichten zu OpenWebUI Message-Format
-   * @param {string} chatId - Chat ID
-   * @returns {array} Array im OpenWebUI-Format
+   * Convert chat messages to OpenWebUI message format
+   * @param {string} chatId - chat id
+   * @returns {array} array in OpenWebUI format
    */
   getChatHistory(chatId) {
     const messages = this.getRecentMessages(chatId, 20);
@@ -186,8 +185,8 @@ class MemoryManager {
   }
 
   /**
-   * Lösche Chat
-   * @param {string} chatId - Chat ID
+   * Delete chat
+   * @param {string} chatId - chat id
    */
   deleteChat(chatId) {
     try {
@@ -196,13 +195,13 @@ class MemoryManager {
         fs.unlinkSync(chatPath);
       }
     } catch (error) {
-      console.error(`Fehler beim Löschen von Chat ${chatId}:`, error.message);
+      console.error(`Error deleting chat ${chatId}:`, error.message);
     }
   }
 
   /**
-   * Liste alle verfügbaren Chats auf
-   * @returns {array} Array von Chat-Objekten
+   * List all available chats
+   * @returns {array} array of chat objects
    */
   listAllChats() {
     try {
@@ -220,15 +219,15 @@ class MemoryManager {
         })
         .filter(Boolean);
     } catch (error) {
-      console.error('Fehler beim Auflisten von Chats:', error.message);
+      console.error('Error listing chats:', error.message);
       return [];
     }
   }
 
   /**
-   * Hole Chat-Statistiken
-   * @param {string} chatId - Chat ID
-   * @returns {object} Statistiken
+   * Get chat statistics
+   * @param {string} chatId - chat id
+   * @returns {object} statistics
    */
   getChatStats(chatId) {
     const chat = this.loadChat(chatId);

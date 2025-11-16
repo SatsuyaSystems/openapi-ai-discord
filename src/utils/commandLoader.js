@@ -3,7 +3,7 @@ const path = require('path');
 const { Collection } = require('discord.js');
 
 /**
- * Lädt alle Commands aus dem commands-Ordner
+ * Load all commands from the commands folder
  */
 function loadCommands(client, options = {}) {
   const commands = new Collection();
@@ -14,7 +14,7 @@ function loadCommands(client, options = {}) {
     const filePath = path.join(commandsPath, file);
     const command = require(filePath);
     
-    // Injiziere Dependencies wenn verfügbar
+    // Inject dependencies if available
     if (options.messageQueue && command.setMessageQueue) {
       command.setMessageQueue(options.messageQueue);
     }
@@ -24,9 +24,9 @@ function loadCommands(client, options = {}) {
     
     if ('data' in command && 'execute' in command) {
       commands.set(command.data.name, command);
-      console.log(`✅ Command geladen: ${command.data.name}`);
+      console.log(`✅ Command loaded: ${command.data.name}`);
     } else {
-      console.warn(`⚠️ Command ${file} hat keine data oder execute Eigenschaft!`);
+      console.warn(`⚠️ Command ${file} does not export 'data' and 'execute' properties!`);
     }
   }
 
@@ -34,11 +34,11 @@ function loadCommands(client, options = {}) {
 }
 
 /**
- * Registriert alle Commands bei Discord
+ * Register all commands with Discord
  */
 async function registerCommands(client) {
   try {
-    console.log('🔄 Registriere Slash-Commands...');
+    console.log('🔄 Registering slash commands...');
     
     const commandsPath = path.join(__dirname, '../commands');
     const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
@@ -54,9 +54,9 @@ async function registerCommands(client) {
     }
 
     await client.application.commands.set(commands);
-    console.log(`✅ ${commands.length} Slash-Commands registriert`);
+    console.log(`✅ ${commands.length} slash commands registered`);
   } catch (error) {
-    console.error('❌ Fehler beim Registrieren der Commands:', error);
+    console.error('❌ Error registering commands:', error);
   }
 }
 

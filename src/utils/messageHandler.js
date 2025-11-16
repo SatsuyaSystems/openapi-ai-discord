@@ -1,47 +1,39 @@
 const { ChannelType } = require('discord.js');
 
-const memoryManager = require('./memoryManager');
-
+/**
+ * MessageHandler
+ * Processes queued Discord messages, sends them to OpenWebUI, stores results in local memory, and replies.
+ */
 class MessageHandler {
   constructor(openwebui, configManager) {
     this.openwebui = openwebui;
     this.configManager = configManager;
+    this._getChannelFn = null; // injected function to fetch channels
   }
 
-  /**
-   * Verarbeitet ein Queue-Item und antwortet
-   */
   async handle(queueItem) {
     try {
-      console.log(`🔄 Verarbeite Queue-Item: DM=${queueItem.isDM}, Channel=${queueItem.channelId}, Message=${queueItem.messageId}`);
+      console.log(`🔄 Processing queue item: DM=${queueItem.isDM}, Channel=${queueItem.channelId}, Message=${queueItem.messageId}`);
 
-      // Hole die Discord Message
       const channel = await this.getChannel(queueItem.channelId);
-      if (!channel) {
-        throw new Error(`Kanal nicht gefunden: ${queueItem.channelId}`);
-      }
+      if (!channel) throw new Error(`Channel not found: ${queueItem.channelId}`);
 
       let message;
       try {
         message = await channel.messages.fetch(queueItem.messageId);
-      } catch (error) {
-        throw new Error(`Nachricht nicht gefunden: ${queueItem.messageId}`);
+      } catch (err) {
+        throw new Error(`Message not found: ${queueItem.messageId}`);
       }
 
-      console.log(`📝 Nachricht gefunden: "${message.content.substring(0, 50)}..." in ${((message.channel && (message.channel.type === ChannelType.DM || message.channel.type === 1 || String(message.channel.type).toUpperCase() === 'DM')) ? 'DM' : 'Channel')}`);
-
-      // Zeige dass der Bot "tippt"
+      console.log(`📝 Message found: "${message.content.substring(0, 50)}..."`);
       await channel.sendTyping();
 
-      // Formatiere die Nachricht mit Metadaten
       const { formatted, content } = this.formatMessageWithMetadata(message);
 
-      // Hole Config
       const contextMode = queueItem.isDM ? 'private' : this.configManager.getContextMode();
       const systemPrompt = this.configManager.getSystemPrompt();
       const webUIConfig = this.configManager.getOpenWebUIConfig();
 
-      // Hole oder erstelle Chat (nutzt JSON Memory System!)
       const chatInfo = this.openwebui.getOrCreateChat(
         message.author.id,
         message.author.username,
@@ -50,20 +42,12 @@ class MessageHandler {
 
       console.log(`💬 Chat ID: ${chatInfo.id} (${chatInfo.title})`);
 
-      // Lade Chat-Verlauf AUS LOKALEM MEMORY (JSON)
       const chatHistory = this.openwebui.getChatHistory(chatInfo.id);
-      console.log(
-        `📚 Lade ${chatHistory.length} Nachrichten aus lokalem Memory`
-      );
+      console.log(`📚 Loaded ${chatHistory.length} messages from local memory`);
 
-      // Sende an OpenWebUI (nutzt /api/chat/completions)
-      const response = await this.openwebui.chat(
-        formatted,
-        systemPrompt,
-        chatHistory
-      );
+      const response = await this.openwebui.chat(formatted, systemPrompt, chatHistory);
 
-      // Speichere BENUTZER-NACHRICHT im lokalen Memory
+      // persist messages
       this.openwebui.saveMessage(chatInfo.id, 'user', content, {
         author: message.author.username,
         authorId: message.author.id,
@@ -71,91 +55,57 @@ class MessageHandler {
         timestamp: message.createdTimestamp,
       });
 
-      // Speichere BOT-ANTWORT im lokalen Memory
       this.openwebui.saveMessage(chatInfo.id, 'assistant', response, {
         model: webUIConfig.model,
         timestamp: Date.now(),
       });
 
-      console.log(`💾 Nachrichten in lokalem Memory gespeichert`);
+      console.log('💾 Messages saved to local memory');
 
-      // Formatiere die Antwort für Discord (max 2000 Zeichen pro Nachricht)
       const formattedResponses = this.formatResponseForDiscord(response);
 
-      // Antworte auf die Nachricht (Reply mit Thread)
+      // send replies (first message as reply/send, following as follow-ups)
       if (Array.isArray(formattedResponses)) {
         let firstReply = null;
-
         for (let i = 0; i < formattedResponses.length; i++) {
           const resp = formattedResponses[i];
-
           if (i === 0) {
-            // Erste Antwort: In DMs send, sonst reply
             if (message.channel && (message.channel.type === ChannelType.DM || message.channel.type === 1 || String(message.channel.type).toUpperCase() === 'DM')) {
-              firstReply = await channel.send({
-                content: resp,
-              });
+              firstReply = await channel.send({ content: resp });
             } else {
-              firstReply = await message.reply({
-                content: resp,
-                allowedMentions: { repliedUser: false },
-              });
+              firstReply = await message.reply({ content: resp, allowedMentions: { repliedUser: false } });
             }
           } else {
-            // Weitere Antworten: Im gleichen Thread oder als Follow-up
             if (message.channel && (message.channel.type === ChannelType.DM || message.channel.type === 1 || String(message.channel.type).toUpperCase() === 'DM')) {
-              await channel.send({
-                content: resp,
-              });
+              await channel.send({ content: resp });
             } else {
-              await firstReply.reply({
-                content: resp,
-                allowedMentions: { repliedUser: false },
-              });
+              await firstReply.reply({ content: resp, allowedMentions: { repliedUser: false } });
             }
           }
         }
       } else {
-        // Einzelne Antwort: In DMs send, sonst reply
         if (message.channel && (message.channel.type === ChannelType.DM || message.channel.type === 1 || String(message.channel.type).toUpperCase() === 'DM')) {
-          await channel.send({
-            content: formattedResponses,
-          });
+          await channel.send({ content: formattedResponses });
         } else {
-          await message.reply({
-            content: formattedResponses,
-            allowedMentions: { repliedUser: false },
-          });
+          await message.reply({ content: formattedResponses, allowedMentions: { repliedUser: false } });
         }
       }
 
-      // Gebe Statistiken aus
       const stats = this.openwebui.getChatStats(chatInfo.id);
-      console.log(`� Chat Statistiken:`, stats);
-
+      console.log('📊 Chat statistics:', stats);
     } catch (error) {
-      console.error(`❌ Fehler beim Verarbeiten der Nachricht: ${error.message}`);
-      
+      console.error('❌ Error processing message:', error.message);
       try {
         const channel = await this.getChannel(queueItem.channelId);
         const message = await channel.messages.fetch(queueItem.messageId);
-        
-        await message.reply({
-          content: '❌ Es gab einen Fehler beim Verarbeiten deiner Nachricht. Versuche es später erneut.',
-          allowedMentions: { repliedUser: false }
-        });
+        await message.reply({ content: '❌ There was an error processing your message. Please try again later.', allowedMentions: { repliedUser: false } });
       } catch (replyError) {
-        console.error(`❌ Fehler beim Senden der Fehlernachricht: ${replyError.message}`);
+        console.error('❌ Error sending error reply:', replyError.message);
       }
-
-      // Re-throw für Queue Retry-Logik
       throw error;
     }
   }
 
-  /**
-   * Formatiert eine Discord-Nachricht mit Metadaten
-   */
   formatMessageWithMetadata(message) {
     const metadata = {
       author: message.author.username,
@@ -164,76 +114,51 @@ class MessageHandler {
       channelId: message.channel.id,
       timestamp: message.createdTimestamp,
       isMention: message.mentions.has(message.client.user),
-      attachmentsCount: message.attachments.size
+      attachmentsCount: message.attachments.size,
     };
 
-    const formattedMessage = `
-[Discord Nachricht]
-**Autor:** ${metadata.author} (${metadata.authorId})
-**Kanal:** ${metadata.channel}
-**Zeit:** ${new Date(metadata.timestamp).toLocaleString('de-DE')}
-**Anhänge:** ${metadata.attachmentsCount}
+    const formattedMessage = `\n[Discord message]\n**Author:** ${metadata.author} (${metadata.authorId})\n**Channel:** ${metadata.channel}\n**Time:** ${new Date(metadata.timestamp).toLocaleString('en-US')}\n**Attachments:** ${metadata.attachmentsCount}\n\n${message.content}`.trim();
 
-${message.content}
-    `.trim();
-
-    return {
-      formatted: formattedMessage,
-      metadata: metadata,
-      content: message.content
-    };
+    return { formatted: formattedMessage, metadata, content: message.content };
   }
 
-  /**
-   * Formatiert die Bot-Antwort zurück für Discord
-   */
   formatResponseForDiscord(response, maxLength = 2000) {
-    if (response.length <= maxLength) {
-      return response;
-    }
-    
-    // Teile lange Nachrichten auf
+    if (!response) return '';
+    if (response.length <= maxLength) return response;
+
     const chunks = [];
-    let currentChunk = '';
-    
+    let current = '';
     response.split('\n').forEach(line => {
-      if ((currentChunk + line).length <= maxLength) {
-        currentChunk += line + '\n';
+      if ((current + line).length <= maxLength) {
+        current += line + '\n';
       } else {
-        if (currentChunk) chunks.push(currentChunk.trim());
-        currentChunk = line + '\n';
+        if (current) chunks.push(current.trim());
+        current = line + '\n';
       }
     });
-    
-    if (currentChunk) chunks.push(currentChunk.trim());
-    
+    if (current) chunks.push(current.trim());
     return chunks;
   }
 
-  /**
-   * Holt einen Channel vom Client
-   */
+  // channel getter is injected from index.js
   async getChannel(channelId) {
-    // Diese Methode wird vom Bot injiziert
     if (this._getChannelFn) {
       try {
         const channel = await this._getChannelFn(channelId);
-        console.log(`📡 Channel gefunden: ${channel?.type} (${channelId})`);
+        console.log(`📡 Channel found: ${channel?.type} (${channelId})`);
         return channel;
       } catch (error) {
-        console.error(`❌ Fehler beim Laden des Channels ${channelId}:`, error.message);
+        console.error(`❌ Error loading channel ${channelId}:`, error.message);
         throw error;
       }
     }
-    throw new Error('Channel-Getter nicht konfiguriert');
+    throw new Error('Channel getter not configured');
   }
 
-  /**
-   * Injiziert die getChannel Funktion vom Bot
-   */
   setChannelGetter(fn) {
     this._getChannelFn = fn;
   }
 }
 
 module.exports = MessageHandler;
+        throw error;

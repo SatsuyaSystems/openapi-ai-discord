@@ -4,13 +4,13 @@ const configManager = require('../utils/configManager');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('listchannels')
-    .setDescription('Zeigt alle aktiven Listener-Kanäle'),
+    .setDescription('Show all active listener channels'),
   
   async execute(interaction) {
-    // Prüfe ob User Admin ist
+    // Check admin permission
     if (!configManager.isAdmin(interaction.user.id)) {
       return interaction.reply({
-        content: '❌ Du hast keine Berechtigung für diesen Command!',
+        content: '❌ You do not have permission to run this command!',
         ephemeral: true
       });
     }
@@ -19,7 +19,7 @@ module.exports = {
     
     if (channels.length === 0) {
       return interaction.reply({
-        content: '📭 Keine Listener-Kanäle konfiguriert!',
+        content: '📭 No listener channels configured!',
         ephemeral: true
       });
     }
@@ -27,7 +27,7 @@ module.exports = {
     const channelList = channels.map(id => `<#${id}>`).join('\n');
     
     return interaction.reply({
-      content: `📋 **Aktive Listener-Kanäle:**\n${channelList}`,
+      content: `📋 **Active listener channels:**\n${channelList}`,
       ephemeral: true
     });
   }

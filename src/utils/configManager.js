@@ -3,38 +3,38 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * Config Manager - Lädt alle Einstellungen aus .env
- * Schreibt auch Änderungen zurück in die .env Datei
+ * Config Manager - loads settings from .env
+ * and writes changes back to the .env file
  */
 
 const envPath = path.join(__dirname, '../../.env');
 const promptsPath = path.join(__dirname, '../../prompts');
 
 /**
- * Lädt alle System-Prompt-Dateien aus dem /prompts Ordner
- * @returns {string} Zusammengesetzter System-Prompt
+ * Load all system prompt files from the /prompts folder
+ * @returns {string} combined system prompt
  */
 function loadSystemPromptFromFiles() {
   try {
-    // Stelle sicher, dass der Ordner existiert
+    // Ensure the prompts folder exists
     if (!fs.existsSync(promptsPath)) {
       fs.mkdirSync(promptsPath, { recursive: true });
-      console.log('📁 /prompts Ordner erstellt');
+      console.log('📁 /prompts folder created');
     }
 
-    // Hole alle .txt Dateien
+    // Collect all .txt files
     const files = fs.readdirSync(promptsPath)
       .filter(file => file.endsWith('.txt'))
-      .sort(); // Alphabetische Reihenfolge
+      .sort(); // Alphabetical order
 
     if (files.length === 0) {
-      console.warn('⚠️ Keine .txt Dateien im /prompts Ordner gefunden!');
+      console.warn('⚠️ No .txt files found in /prompts folder!');
       return getSystemPromptFromEnv();
     }
 
-    console.log(`📄 Lade ${files.length} Prompt-Dateien: ${files.join(', ')}`);
+    console.log(`📄 Loading ${files.length} prompt files: ${files.join(', ')}`);
 
-    // Lese alle Dateien und füge sie zusammen
+    // Read all files and concatenate them
     const promptParts = [];
     for (const file of files) {
       try {
@@ -43,32 +43,32 @@ function loadSystemPromptFromFiles() {
         if (content) {
           promptParts.push(content);
         }
-      } catch (error) {
-        console.error(`❌ Fehler beim Lesen von ${file}:`, error.message);
+        } catch (error) {
+        console.error(`❌ Error reading ${file}:`, error.message);
       }
     }
 
-    // Füge mit Zeilenumbrüchen zusammen
+    // Join with paragraph breaks
     const combinedPrompt = promptParts.join('\n\n');
-    console.log(`✅ System-Prompt zusammengesetzt (${combinedPrompt.length} Zeichen)`);
+    console.log(`✅ System prompt assembled (${combinedPrompt.length} characters)`);
 
     return combinedPrompt;
   } catch (error) {
-    console.error('❌ Fehler beim Laden der Prompt-Dateien:', error.message);
+    console.error('❌ Error loading prompt files:', error.message);
     return getSystemPromptFromEnv();
   }
 }
 
 /**
- * Fallback: Hole System-Prompt aus .env
+ * Fallback: get system prompt from .env
  */
 function getSystemPromptFromEnv() {
   return process.env.ELYSIUM_SYSTEM_PROMPT ||
-    'Du bist eine hilfreiche KI-Assistentin.';
+    'You are a helpful AI assistant.';
 }
 
 /**
- * Schreibt eine Umgebungsvariable in die .env Datei
+ * Write an environment variable to the .env file
  * @param {string} key - Variable name
  * @param {string} value - Variable value
  */
@@ -83,7 +83,7 @@ function setEnvVariable(key, value) {
     const lines = envContent.split('\n');
     let found = false;
 
-    // Aktualisiere oder füge hinzu
+    // Update or add the variable
     const updatedLines = lines.map((line) => {
       if (line.startsWith(`${key}=`)) {
         found = true;
@@ -96,19 +96,19 @@ function setEnvVariable(key, value) {
       updatedLines.push(`${key}=${value}`);
     }
 
-    // Schreibe zurück
+    // Write back
     fs.writeFileSync(envPath, updatedLines.join('\n'), 'utf8');
-    console.log(`💾 .env aktualisiert: ${key}=${value}`);
+    console.log(`💾 .env updated: ${key}=${value}`);
 
-    // Update auch im Runtime-Process
+    // Also update the runtime process environment
     process.env[key] = value;
   } catch (error) {
-    console.error(`❌ Fehler beim Speichern in .env: ${error.message}`);
+    console.error(`❌ Error saving to .env: ${error.message}`);
   }
 }
 
 /**
- * Gibt alle Admins zurück
+ * Return all admins
  */
 function getAdmins() {
   const adminStr = process.env.ADMIN_IDS || '';
@@ -119,14 +119,14 @@ function getAdmins() {
 }
 
 /**
- * Prüft ob ein User ein Admin ist
+ * Check if a user is an admin
  */
 function isAdmin(userId) {
   return getAdmins().includes(userId);
 }
 
 /**
- * Gibt alle Listener-Kanäle zurück
+ * Return all listener channel IDs
  */
 function getListenerChannels() {
   const channelStr = process.env.LISTENER_CHANNELS || '';
@@ -137,7 +137,7 @@ function getListenerChannels() {
 }
 
 /**
- * Fügt einen Kanal zu den Listern hinzu
+ * Add a channel to listener list
  */
 function addListenerChannel(channelId) {
   let channels = getListenerChannels();
@@ -152,7 +152,7 @@ function addListenerChannel(channelId) {
 }
 
 /**
- * Entfernt einen Kanal aus den Listern
+ * Remove a channel from the listener list
  */
 function removeListenerChannel(channelId) {
   let channels = getListenerChannels();
@@ -169,7 +169,7 @@ function removeListenerChannel(channelId) {
 }
 
 /**
- * Setzt den Context-Modus (shared oder private)
+ * Set context mode ('shared' or 'private')
  */
 function setContextMode(mode) {
   if (['shared', 'private'].includes(mode)) {
@@ -180,14 +180,14 @@ function setContextMode(mode) {
 }
 
 /**
- * Gibt den aktuellen Context-Modus zurück
+ * Get the current context mode
  */
 function getContextMode() {
   return process.env.CONTEXT_MODE || 'shared';
 }
 
 /**
- * Gibt OpenWebUI Konfiguration zurück
+ * Return OpenWebUI configuration
  */
 function getOpenWebUIConfig() {
   return {
@@ -198,7 +198,7 @@ function getOpenWebUIConfig() {
 }
 
 /**
- * Gibt Keyword-Trigger Konfiguration zurück
+ * Return keyword trigger configuration
  */
 function getKeywordConfig() {
   return {
@@ -208,7 +208,7 @@ function getKeywordConfig() {
 }
 
 /**
- * Aktiviert/Deaktiviert Keyword-Trigger
+ * Enable/disable keyword trigger
  */
 function setKeywordEnabled(enabled) {
   const value = enabled ? 'true' : 'false';
@@ -217,7 +217,7 @@ function setKeywordEnabled(enabled) {
 }
 
 /**
- * Setzt das Keyword-Trigger-Wort
+ * Set the keyword trigger word
  */
 function setKeywordTrigger(trigger) {
   if (trigger && trigger.trim()) {
@@ -228,21 +228,21 @@ function setKeywordTrigger(trigger) {
 }
 
 /**
- * Lädt den System-Prompt aus allen .txt Dateien im /prompts Ordner
- * @returns {string} Der kombinierte System-Prompt
+ * Load the system prompt from all .txt files in the /prompts folder
+ * @returns {string} the combined system prompt
  */
 function getSystemPrompt() {
   const promptsDir = path.join(process.cwd(), 'prompts');
   
   if (!fs.existsSync(promptsDir)) {
-    console.warn('Prompts Ordner nicht gefunden:', promptsDir);
-    return 'Du bist ElysiumAI, eine mystische KI-Entität aus einer Fantasy-Welt.';
+    console.warn('Prompts folder not found:', promptsDir);
+    return 'You are ElysiumAI, a mystical AI entity from a fantasy world.';
   }
   
   const files = fs.readdirSync(promptsDir).filter(file => file.endsWith('.txt'));
   if (files.length === 0) {
-    console.warn('Keine .txt Dateien im prompts Ordner gefunden');
-    return 'Du bist ElysiumAI, eine mystische KI-Entität aus einer Fantasy-Welt.';
+    console.warn('No .txt files found in prompts folder');
+    return 'You are ElysiumAI, a mystical AI entity from a fantasy world.';
   }
   
   let combinedPrompt = '';
@@ -252,7 +252,7 @@ function getSystemPrompt() {
       const content = fs.readFileSync(filePath, 'utf8');
       combinedPrompt += content + '\n\n';
     } catch (error) {
-      console.error(`Fehler beim Lesen der Datei ${file}:`, error.message);
+      console.error(`Error reading file ${file}:`, error.message);
     }
   }
   

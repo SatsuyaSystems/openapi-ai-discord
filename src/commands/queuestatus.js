@@ -13,22 +13,22 @@ function setMessageQueue(queue) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('queuestatus')
-    .setDescription('Zeigt den Status der Message Queue'),
+    .setDescription('Show the status of the message queue'),
   
   setMessageQueue,
 
   async execute(interaction) {
-    // Prüfe ob User Admin ist
+    // Check admin permission
     if (!configManager.isAdmin(interaction.user.id)) {
       return interaction.reply({
-        content: '❌ Du hast keine Berechtigung für diesen Command!',
+        content: '❌ You do not have permission to run this command!',
         ephemeral: true
       });
     }
 
     if (!messageQueue) {
       return interaction.reply({
-        content: '❌ Message Queue nicht initialisiert!',
+        content: '❌ Message queue not initialized!',
         ephemeral: true
       });
     }
@@ -40,12 +40,12 @@ module.exports = {
       .setColor('#0099ff')
       .setTitle('📨 Message Queue Status')
       .addFields(
-        { name: '✅ Verarbeitet', value: `${stats.processed}`, inline: true },
-        { name: '❌ Fehlgeschlagen', value: `${stats.failed}`, inline: true },
+        { name: '✅ Processed', value: `${stats.processed}`, inline: true },
+        { name: '❌ Failed', value: `${stats.failed}`, inline: true },
         { name: '🔄 Retries', value: `${stats.retried}`, inline: true },
         { name: '📦 In Queue', value: `${stats.queueLength}`, inline: true },
-        { name: '⚙️ Verarbeitet gerade', value: `${stats.processing}`, inline: true },
-        { name: '🏃 Läuft', value: stats.isRunning ? 'Ja' : 'Nein', inline: true }
+        { name: '⚙️ Currently Processing', value: `${stats.processing}`, inline: true },
+        { name: '🏃 Running', value: stats.isRunning ? 'Yes' : 'No', inline: true }
       );
 
     if (queueItems.length > 0) {
@@ -54,7 +54,7 @@ module.exports = {
         .join('\n');
       
       embed.addFields({
-        name: '📋 Nächste Items in Queue',
+        name: '📋 Next items in queue',
         value: queueText,
         inline: false
       });

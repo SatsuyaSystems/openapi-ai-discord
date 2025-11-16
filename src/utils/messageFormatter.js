@@ -1,7 +1,7 @@
 const { ChannelType } = require('discord.js');
 
 /**
- * Formatiert eine Discord-Nachricht mit Metadaten für die OpenWebUI API
+ * Format a Discord message with metadata for the OpenWebUI API
  */
 function formatMessageWithMetadata(message) {
   const metadata = {
@@ -15,11 +15,11 @@ function formatMessageWithMetadata(message) {
   };
 
   const formattedMessage = `
-[Discord Nachricht]
-**Autor:** ${metadata.author} (${metadata.authorId})
-**Kanal:** ${metadata.channel}
-**Zeit:** ${new Date(metadata.timestamp).toLocaleString('de-DE')}
-**Anhänge:** ${metadata.attachmentsCount}
+[Discord message]
+**Author:** ${metadata.author} (${metadata.authorId})
+**Channel:** ${metadata.channel}
+**Time:** ${new Date(metadata.timestamp).toLocaleString('en-US')}
+**Attachments:** ${metadata.attachmentsCount}
 
 ${message.content}
   `.trim();
@@ -32,14 +32,14 @@ ${message.content}
 }
 
 /**
- * Formatiert die Bot-Antwort zurück für Discord
+ * Format the bot response for Discord
  */
 function formatResponseForDiscord(response, maxLength = 2000) {
   if (response.length <= maxLength) {
     return response;
   }
   
-  // Teile lange Nachrichten auf
+  // Split long messages into chunks
   const chunks = [];
   let currentChunk = '';
   

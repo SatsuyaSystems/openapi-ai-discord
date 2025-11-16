@@ -1,6 +1,6 @@
 /**
- * In-Memory Message Queue für Discord Bot
- * Verarbeitet Nachrichten mit Retry-Logik
+ * In-memory message queue for the Discord bot
+ * Processes messages with retry logic
  */
 class MessageQueue {
   constructor(options = {}) {
@@ -11,7 +11,7 @@ class MessageQueue {
     this.processInterval = options.processInterval || 1000; // 1 Sekunde
     this.isRunning = false;
     
-    // Statistiken
+    // statistics
     this.stats = {
       processed: 0,
       failed: 0,
@@ -19,12 +19,12 @@ class MessageQueue {
       totalInQueue: 0
     };
 
-    // Starte Verarbeitungs-Loop
+    // start processing loop
     this.start();
   }
 
   /**
-   * Fügt eine Nachricht zur Queue hinzu
+   * Enqueue a message
    */
   enqueue(message, metadata = {}) {
     const queueItem = {
@@ -38,7 +38,7 @@ class MessageQueue {
       replyTo: message.reference?.messageId || null,
       timestamp: message.createdTimestamp,
       retries: 0,
-      // Kopiere wichtige Flags auch auf die oberste Ebene, damit Handler sie direkt lesen kann
+      // copy important flags to top-level so handlers can read them directly
       metadata: {
         isMention: metadata.isMention,
         isListenerChannel: metadata.isListenerChannel,
@@ -49,24 +49,24 @@ class MessageQueue {
       isListenerChannel: metadata.isListenerChannel,
       hasKeyword: metadata.hasKeyword,
       createdAt: Date.now(),
-      handler: metadata.handler // Funktion die verarbeitet wird
+      handler: metadata.handler // handler function to process the item
     };
 
     this.queue.push(queueItem);
     this.stats.totalInQueue = this.queue.length;
     
-    console.log(`📨 Nachricht in Queue: ${message.author.username} (Queue: ${this.queue.length})`);
+    console.log(`📨 Enqueued message: ${message.author.username} (Queue: ${this.queue.length})`);
     return queueItem.id;
   }
 
   /**
-   * Startet die Verarbeitung der Queue
+   * Start processing the queue
    */
   start() {
     if (this.isRunning) return;
     
     this.isRunning = true;
-    console.log('🚀 Message Queue gestartet');
+    console.log('🚀 Message queue started');
     
     this.processingTimer = setInterval(() => {
       this.processNext();
@@ -74,28 +74,28 @@ class MessageQueue {
   }
 
   /**
-   * Stoppt die Verarbeitung
+   * Stop processing
    */
   stop() {
     this.isRunning = false;
     if (this.processingTimer) {
       clearInterval(this.processingTimer);
     }
-    console.log('⏹️ Message Queue gestoppt');
+    console.log('⏹️ Message queue stopped');
   }
 
   /**
-   * Verarbeitet die nächste Nachricht
+   * Process the next message
    */
   async processNext() {
     if (this.queue.length === 0) return;
 
-    // Prüfe ob zu viele gleichzeitig verarbeitet werden
+    // check if too many are processed at once
     if (this.processing.size >= 3) return;
 
     const item = this.queue.shift();
     
-    // Verhindere Duplikate
+    // prevent duplicates
     if (this.processing.has(item.id)) {
       return;
     }
@@ -103,32 +103,32 @@ class MessageQueue {
     this.processing.add(item.id);
 
     try {
-      // Führe Handler aus
+      // execute handler
       if (item.handler && typeof item.handler === 'function') {
         await item.handler(item);
       }
 
       this.stats.processed++;
-      console.log(`✅ Nachricht verarbeitet: ${item.author.username} (Stats: ${this.stats.processed}/${this.stats.failed})`);
+      console.log(`✅ Message processed: ${item.author.username} (Stats: ${this.stats.processed}/${this.stats.failed})`);
 
     } catch (error) {
-      console.error(`❌ Fehler bei Verarbeitung: ${error.message}`);
+      console.error(`❌ Error processing message: ${error.message}`);
 
-      // Retry-Logik
+      // retry logic
       if (item.retries < this.maxRetries) {
         item.retries++;
         this.stats.retried++;
         
-        console.warn(`🔄 Retry ${item.retries}/${this.maxRetries} für Nachricht ${item.messageId}`);
+        console.warn(`🔄 Retry ${item.retries}/${this.maxRetries} for message ${item.messageId}`);
         
-        // Füge wieder zur Queue hinzu nach Verzögerung
+        // Re-enqueue after delay
         setTimeout(() => {
           this.queue.push(item);
           this.stats.totalInQueue = this.queue.length;
         }, this.retryDelay * item.retries); // Exponentielles Backoff
       } else {
         this.stats.failed++;
-        console.error(`❌ Nachricht endgültig fehlgeschlagen: ${item.messageId}`);
+        console.error(`❌ Message permanently failed: ${item.messageId}`);
       }
     } finally {
       this.processing.delete(item.id);
@@ -137,7 +137,7 @@ class MessageQueue {
   }
 
   /**
-   * Gibt Statistiken aus
+   * Return statistics
    */
   getStats() {
     return {
@@ -149,7 +149,7 @@ class MessageQueue {
   }
 
   /**
-   * Setzt Statistiken zurück
+   * Reset statistics
    */
   resetStats() {
     this.stats = {
@@ -161,7 +161,7 @@ class MessageQueue {
   }
 
   /**
-   * Gibt Queue-Inhalt für Debugging aus
+   * Return queue content for debugging
    */
   getQueue() {
     return this.queue.map(item => ({
@@ -175,12 +175,12 @@ class MessageQueue {
   }
 
   /**
-   * Leert die Queue
+   * Clear the queue
    */
   clear() {
     this.queue = [];
     this.stats.totalInQueue = 0;
-    console.log('🗑️ Message Queue geleert');
+    console.log('🗑️ Message queue cleared');
   }
 }
 
