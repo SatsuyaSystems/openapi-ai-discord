@@ -13,7 +13,6 @@ class ChatManager {
     this.openwebuiUserId = openwebuiUserId;
     this.dataFile = path.join(__dirname, '../../data/user_chats.json');
     this.userChats = this.loadUserChats();
-    this.messageCache = {}; // Cache messages locally until OpenWebUI persists them
   }
 
   /**
@@ -94,7 +93,7 @@ class ChatManager {
 
   /**
    * Get chat history for a Discord user
-   * Combines OpenWebUI persisted messages + local cache
+   * Loads directly from OpenWebUI - no local caching
    * @param {string} discordUserId - Discord user ID
    * @returns {Promise<array>} array of messages
    */
@@ -106,31 +105,22 @@ class ChatManager {
       }
 
       const chatId = this.userChats[discordUserId].chatId;
-      let allMessages = [];
 
       // Get persisted messages from OpenWebUI
-      try {
-        const chat = await this.openwebui.getChat(chatId);
-        if (chat && chat.messages && Array.isArray(chat.messages)) {
-          allMessages = chat.messages.map(msg => ({
-            role: msg.role,
-            content: msg.content
-          }));
-        }
-      } catch (error) {
-        console.warn(`Could not load persisted messages from OpenWebUI: ${error.message}`);
+      const chat = await this.openwebui.getChat(chatId);
+      if (!chat || !chat.messages) {
+        console.log(`📖 No messages found in chat ${chatId}`);
+        return [];
       }
 
-      // Add any cached messages that haven't been persisted yet
-      if (this.messageCache[chatId] && Array.isArray(this.messageCache[chatId])) {
-        // Filter out messages that are already persisted
-        const persistedContent = new Set(allMessages.map(m => m.content));
-        const cachedOnly = this.messageCache[chatId].filter(m => !persistedContent.has(m.content));
-        allMessages = allMessages.concat(cachedOnly);
-      }
+      // Convert messages to standard format
+      const messages = chat.messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
 
-      console.log(`📖 Loaded ${allMessages.length} messages (${allMessages.length - (this.messageCache[chatId]?.length || 0)} from OpenWebUI, rest from cache)`);
-      return allMessages;
+      console.log(`📖 Loaded ${messages.length} messages from OpenWebUI`);
+      return messages;
     } catch (error) {
       console.error('Error getting chat history:', error.message);
       return [];
@@ -138,38 +128,17 @@ class ChatManager {
   }
 
   /**
-   * Add a message to a user's chat
-   * Caches locally for immediate availability, OpenWebUI persists when chat_id is used
+   * Add a message to a user's chat (DEPRECATED)
+   * OpenWebUI persists messages automatically when chat_id is passed to /api/chat/completions
+   * This method is kept for compatibility but does nothing
    * @param {string} discordUserId - Discord user ID
    * @param {string} role - 'user' or 'assistant'
    * @param {string} content - message content
    * @returns {Promise<boolean>} success
    */
   async addMessage(discordUserId, role, content) {
-    try {
-      if (!this.userChats[discordUserId]) {
-        console.warn(`No chat found for user ${discordUserId}`);
-        return false;
-      }
-
-      const chatId = this.userChats[discordUserId].chatId;
-      
-      // Cache message locally for immediate availability
-      if (!this.messageCache[chatId]) {
-        this.messageCache[chatId] = [];
-      }
-      
-      this.messageCache[chatId].push({
-        role: role,
-        content: content
-      });
-      
-      console.log(`💬 ${role} message cached for chat ${chatId} (${this.messageCache[chatId].length} total cached)`);
-      return true;
-    } catch (error) {
-      console.error('Error adding message:', error.message);
-      return false;
-    }
+    // No-op: Messages are persisted automatically by OpenWebUI via chat_id parameter
+    return true;
   }
 
   /**
@@ -197,12 +166,6 @@ class ChatManager {
       }
 
       const chatId = this.userChats[discordUserId].chatId;
-      
-      // Clear local cache
-      if (this.messageCache[chatId]) {
-        delete this.messageCache[chatId];
-      }
-      
       const success = await this.openwebui.deleteChat(chatId);
 
       if (success) {

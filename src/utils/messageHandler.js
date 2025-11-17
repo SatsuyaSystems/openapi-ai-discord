@@ -1,4 +1,5 @@
 const { ChannelType } = require('discord.js');
+const { v4: uuidv4 } = require('uuid');
 
 /**
  * MessageHandler
@@ -76,17 +77,26 @@ class MessageHandler {
         message.author.id
       );
 
-      // Send to OpenWebUI with full chat history AND chat ID for persistence
+      // Send to OpenWebUI with chat ID
       const response = await this.openwebui.chat(formatted, enhancedSystemPrompt, chatHistory, chat.id);
 
-      // Cache the user message locally for next request
-      await this.chatManager.addMessage(message.author.id, 'user', formatted);
-      
-      // Cache the bot response locally for next request  
-      await this.chatManager.addMessage(message.author.id, 'assistant', response);
+      // Manually save USER message to chat
+      try {
+        const userMessageId = uuidv4();
+        await this.openwebui.addChatMessage(chat.id, userMessageId, message.content, 'user');
+        console.log(`💾 User message saved to chat`);
+      } catch (error) {
+        console.warn('⚠️ Failed to save user message:', error.message);
+      }
 
-      // Messages are automatically saved by OpenWebUI when we pass chat_id
-      console.log('💾 Messages cached and will be persisted by OpenWebUI');
+      // Manually save ASSISTANT message to chat
+      try {
+        const assistantMessageId = uuidv4();
+        await this.openwebui.addChatMessage(chat.id, assistantMessageId, response, 'assistant');
+        console.log(`💾 Assistant message saved to chat`);
+      } catch (error) {
+        console.warn('⚠️ Failed to save assistant message:', error.message);
+      }
 
       const formattedResponses = this.formatResponseForDiscord(response);
 

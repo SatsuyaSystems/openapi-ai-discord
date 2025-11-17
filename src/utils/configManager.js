@@ -169,24 +169,6 @@ function removeListenerChannel(channelId) {
 }
 
 /**
- * Set context mode ('shared' or 'private')
- */
-function setContextMode(mode) {
-  if (['shared', 'private'].includes(mode)) {
-    setEnvVariable('CONTEXT_MODE', mode);
-    return true;
-  }
-  return false;
-}
-
-/**
- * Get the current context mode
- */
-function getContextMode() {
-  return process.env.CONTEXT_MODE || 'shared';
-}
-
-/**
  * Return OpenWebUI configuration
  */
 function getOpenWebUIConfig() {
@@ -281,8 +263,6 @@ module.exports = {
   getListenerChannels,
   addListenerChannel,
   removeListenerChannel,
-  setContextMode,
-  getContextMode,
   getOpenWebUIConfig,
   getSystemPrompt,
   setEnvVariable,

@@ -8,13 +8,19 @@
     "dev": "nodemon src/index.js",
     "test:memory": "node test-memory-system.js"
   },
-  "keywords": ["discord", "bot", "openwebui", "roleplay"],
+  "keywords": [
+    "discord",
+    "bot",
+    "openwebui",
+    "roleplay"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "discord.js": "^14.14.0",
     "axios": "^1.6.0",
-    "dotenv": "^16.3.1"
+    "discord.js": "^14.14.0",
+    "dotenv": "^16.3.1",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

@@ -7,15 +7,9 @@ module.exports = {
     .setDescription('Show the current bot status'),
   
   async execute(interaction) {
-    const mode = configManager.getContextMode();
     const channels = configManager.getListenerChannels();
     const openwebui = configManager.getOpenWebUIConfig();
     const keywordConfig = configManager.getKeywordConfig();
-    
-    const modeEmoji = mode === 'shared' ? '👥' : '🔒';
-    const modeDescription = mode === 'shared' 
-      ? 'All users share a chat context'
-      : 'Each user has a private chat context';
     
     // Attempt to load listener channels
     let channelInfo = '';
@@ -34,8 +28,8 @@ module.exports = {
       .setTitle('🤖 Bot Status')
       .addFields(
         {
-          name: `${modeEmoji} Context Mode`,
-          value: `**${mode.toUpperCase()}**\n${modeDescription}`,
+          name: '💬 Chat System',
+          value: '**Per-User Persistent Chats**\nEach user has their own isolated chat with full context retention',
           inline: false
         },
         {
@@ -60,11 +54,11 @@ module.exports = {
         },
         {
           name: '💾 Storage',
-          value: 'JSON memory system + .env persistence',
+          value: 'Per-user persistent chats via OpenWebUI Chat API',
           inline: false
         }
       )
-      .setFooter({ text: 'Use /addchannel, /removechannel, /setmode or /togglekeyword to change settings' });
+      .setFooter({ text: 'Use /addchannel, /removechannel, or /togglekeyword to change settings' });
 
     return interaction.reply({
       embeds: [embed],

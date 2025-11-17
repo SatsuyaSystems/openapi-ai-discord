@@ -121,100 +121,6 @@ class OpenWebUIClient {
   }
 
   /**
-   * Add a memory entry to OpenWebUI
-   * @param {string} content - memory content
-   * @returns {Promise<object>} created memory object
-   */
-  async addMemory(content) {
-    try {
-      const response = await this.axiosInstance.post('/api/v1/memories/add', {
-        content: content,
-      });
-      console.log(`✅ Memory added: ${content.substring(0, 50)}...`);
-      return response.data;
-    } catch (error) {
-      console.error('Error adding memory:', error.message);
-      if (error.response) {
-        console.error('   Status:', error.response.status);
-        console.error('   Data:', JSON.stringify(error.response.data).substring(0, 200));
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Query memories from OpenWebUI
-   * @param {string} query - search query/content
-   * @param {number} limit - number of results to return (default: 5)
-   * @returns {Promise<array>} array of memory objects
-   */
-  async queryMemory(query, limit = 5) {
-    try {
-      const response = await this.axiosInstance.post('/api/v1/memories/query', {
-        content: query,
-        k: limit,
-      });
-      
-      // Ensure we always return an array
-      const memories = Array.isArray(response.data) 
-        ? response.data 
-        : (response.data?.results || []);
-      
-      console.log(`🔍 Query memories: ${query.substring(0, 50)}... (${memories.length} results)`);
-      return memories;
-    } catch (error) {
-      console.error('Error querying memory:', error.message);
-      if (error.response?.status === 404) {
-        console.warn('   Memories not found or vector DB not initialized');
-        return [];
-      }
-      return []; // Return empty array on error to prevent chat failure
-    }
-  }
-
-  /**
-   * Delete a memory entry
-   * @param {string} memoryId - memory ID to delete
-   * @returns {Promise<void>}
-   */
-  async deleteMemory(memoryId) {
-    try {
-      await this.axiosInstance.delete(`/api/v1/memories/${memoryId}`);
-      console.log(`🗑️ Memory deleted: ${memoryId}`);
-      return true;
-    } catch (error) {
-      console.error('Error deleting memory:', error.message);
-      return false;
-    }
-  }
-
-  /**
-   * Get all memories
-   * @returns {Promise<array>} all memories
-   */
-  async getAllMemories() {
-    try {
-      const response = await this.axiosInstance.get('/api/v1/memories/');
-      
-      // Handle different response formats
-      let memories = [];
-      if (Array.isArray(response.data)) {
-        memories = response.data;
-      } else if (response.data?.memories && Array.isArray(response.data.memories)) {
-        memories = response.data.memories;
-      } else if (response.data?.results && Array.isArray(response.data.results)) {
-        memories = response.data.results;
-      }
-      
-      console.log(`📚 Retrieved ${memories.length} total memories`);
-      return memories;
-    } catch (error) {
-      console.error('Error getting all memories:', error.message);
-      return [];
-    }
-  }
-
-  /**
    * Create a new chat for a user
    * @param {string} userId - OpenWebUI user ID
    * @param {string} title - Chat title
@@ -222,13 +128,14 @@ class OpenWebUIClient {
    */
   async createChat(userId, title = 'New Chat') {
     try {
+      // According to ChatForm spec: chat is a dictionary with chat properties
       const payload = {
         chat: {
           title: title
         }
       };
       
-      console.log(`📤 Creating chat with payload:`, JSON.stringify(payload));
+      console.log(`📤 Creating chat with title: ${title}`);
       
       const response = await this.axiosInstance.post('/api/v1/chats/new', payload);
       
@@ -238,7 +145,7 @@ class OpenWebUIClient {
       console.error('Error creating chat:', error.message);
       if (error.response) {
         console.error('   Status:', error.response.status);
-        console.error('   Data:', JSON.stringify(error.response.data));
+        console.error('   Data:', JSON.stringify(error.response.data).substring(0, 200));
       }
       throw error;
     }
@@ -271,130 +178,157 @@ class OpenWebUIClient {
   /**
    * Get a specific chat with all messages
    * @param {string} chatId - Chat ID
-   * @returns {Promise<object>} chat object with messages
+   * @returns {Promise<object|null>} chat object with messages, or null if error
    */
   async getChat(chatId) {
     try {
       const response = await this.axiosInstance.get(`/api/v1/chats/${chatId}`);
       
-      console.log(`📖 Retrieved chat ${chatId}`);
-      return response.data;
+      const chatData = response.data;
+      console.log(`📖 Retrieved chat ${chatId} from OpenWebUI`);
+      
+      // Extract messages from the proper location: chat.history.messages
+      let messageArray = [];
+      
+      if (chatData.chat && 
+          typeof chatData.chat === 'object' && 
+          chatData.chat.history && 
+          chatData.chat.history.messages) {
+        // Convert the message dictionary to an array, sorted by timestamp
+        messageArray = Object.values(chatData.chat.history.messages)
+          .filter(msg => msg && typeof msg === 'object' && msg.role && msg.content)
+          .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        
+        console.log(`   Found ${messageArray.length} messages in chat.history.messages`);
+      } else if (chatData.chat && Array.isArray(chatData.chat.messages)) {
+        // Fallback: messages might be in chat.messages array
+        messageArray = chatData.chat.messages
+          .filter(msg => msg && typeof msg === 'object' && msg.role && msg.content)
+          .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        
+        console.log(`   Found ${messageArray.length} messages in chat.messages array`);
+      } else {
+        console.log(`   Chat has no messages`);
+      }
+      
+      chatData.messages = messageArray;
+      return chatData;
     } catch (error) {
-      console.error('Error getting chat:', error.message);
-      return null;
-    }
-  }
-
-  /**
-   * Add a message to a chat
-   * @param {string} chatId - Chat ID
-   * @param {string} role - 'user' or 'assistant'
-   * @param {string} content - message content
-   * @returns {Promise<object>} message object
-   */
-  async addChatMessage(chatId, role, content) {
-    try {
-      const payload = {
-        content: content
-      };
-      
-      console.log(`📤 Adding ${role} message to chat ${chatId}`);
-      
-      const response = await this.axiosInstance.post(
-        `/api/v1/chats/${chatId}/messages/${role}`,
-        payload
-      );
-      
-      console.log(`✅ Message added to chat`);
-      return response.data;
-    } catch (error) {
-      console.error('Error adding message to chat:', error.message);
-      if (error.response) {
-        console.error('   Status:', error.response.status);
-        console.error('   Data:', JSON.stringify(error.response.data).substring(0, 200));
+      console.error(`❌ Error getting chat ${chatId}: ${error.message}`);
+      if (error.response?.status === 401) {
+        console.warn(`   401 Unauthorized - Chat access denied or deleted`);
+      } else if (error.response?.status === 404) {
+        console.warn(`   404 Not Found - Chat does not exist`);
       }
       return null;
     }
   }
 
   /**
-   * Delete all memories for current user
-   * @returns {Promise<void>}
+   * Delete a chat
+   * @param {string} chatId - Chat ID to delete
+   * @returns {Promise<boolean>} success
    */
-  async deleteUserMemories() {
+  async deleteChat(chatId) {
     try {
-      await this.axiosInstance.delete('/api/v1/memories/delete/user');
-      console.log(`🗑️ All user memories deleted`);
+      const response = await this.axiosInstance.delete(`/api/v1/chats/${chatId}`);
+      
+      console.log(`🗑️ Chat deleted: ${chatId}`);
+      return true;
     } catch (error) {
-      console.error('Error deleting user memories:', error.message);
-      throw error;
+      console.error('Error deleting chat:', error.message);
+      return false;
     }
   }
 
   /**
-   * Format memory results into a context string
-   * @param {array} memories - array of memory objects
-   * @returns {string} formatted memory context
+   * Add a message to a chat
+   * Updates the entire chat.history.messages structure
+   * @param {string} chatId - Chat ID
+   * @param {string} messageId - Unique message ID (UUID)
+   * @param {string} content - message content
+   * @param {string} role - 'user' or 'assistant'
+   * @returns {Promise<object>} updated chat response
    */
-  formatMemoriesAsContext(memories) {
-    if (!memories || memories.length === 0) {
-      return '';
+  async addChatMessage(chatId, messageId, content, role = 'user') {
+    try {
+      console.log(`📝 Adding ${role} message to chat ${chatId}`);
+      
+      // Get current chat to preserve existing messages and structure
+      const currentChat = await this.getChat(chatId);
+      if (!currentChat) {
+        throw new Error(`Failed to load chat ${chatId}`);
+      }
+      
+      // Ensure the chat structure exists
+      if (!currentChat.chat) {
+        currentChat.chat = {};
+      }
+      if (!currentChat.chat.history) {
+        currentChat.chat.history = { messages: {}, currentId: null };
+      }
+      if (!currentChat.chat.history.messages) {
+        currentChat.chat.history.messages = {};
+      }
+      
+      // Find the last message to set as parent
+      const allMessages = Object.values(currentChat.chat.history.messages);
+      const lastMessage = allMessages.length > 0 
+        ? allMessages[allMessages.length - 1] 
+        : null;
+      
+      // Create the new message with proper OpenWebUI structure
+      const newMessage = {
+        id: messageId,
+        parentId: lastMessage ? lastMessage.id : null,
+        childrenIds: [],
+        role: role,
+        content: content,
+        timestamp: Math.floor(Date.now() / 1000), // Unix timestamp in seconds
+        models: currentChat.chat.models || ['gpt-5-mini']
+      };
+      
+      // Update parent's childrenIds if there is one
+      if (lastMessage) {
+        lastMessage.childrenIds = [messageId];
+      }
+      
+      // Add the new message
+      currentChat.chat.history.messages[messageId] = newMessage;
+      
+      // Update currentId to the new message
+      currentChat.chat.history.currentId = messageId;
+      
+      // Also update the flat messages array if it exists
+      if (Array.isArray(currentChat.chat.messages)) {
+        currentChat.chat.messages.push(newMessage);
+      }
+      
+      // Send update back to OpenWebUI
+      const updatePayload = {
+        chat: currentChat.chat
+      };
+      
+      const response = await this.axiosInstance.post(
+        `/api/v1/chats/${chatId}`,
+        updatePayload
+      );
+      
+      console.log(`✅ ${role.toUpperCase()} message added to chat: ${messageId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`❌ Error adding ${role} message to chat: ${error.message}`);
+      if (error.response) {
+        console.error(`   Status: ${error.response.status}`);
+        if (error.response.data) {
+          const errorData = typeof error.response.data === 'string' 
+            ? error.response.data 
+            : JSON.stringify(error.response.data);
+          console.error(`   Data: ${errorData.substring(0, 200)}`);
+        }
+      }
+      return null;
     }
-    return memories
-      .map(mem => mem.content || '')
-      .filter(content => content)
-      .join('\n');
-  }
-
-  /**
-   * Save a message in the memory system (DEPRECATED - Memory API only)
-   * @deprecated Use addMemory() instead
-   */
-  saveMessage(chatId, role, content, metadata = {}) {
-    // No-op - all storage is via Memory API
-    return { id: 'deprecated', role, content };
-  }
-
-  /**
-   * Get chat history as an array (DEPRECATED - Memory API only)
-   * @deprecated Use queryMemory() instead
-   * @returns {array} empty array
-   */
-  getChatHistory(chatId) {
-    // No-op - return empty array
-    return [];
-  }
-
-  /**
-   * Get chat information (DEPRECATED - Memory API only)
-   * @deprecated Not needed for Memory API
-   */
-  getChat(chatId) {
-    return { id: chatId, messageCount: 0 };
-  }
-
-  /**
-   * Delete chat (DEPRECATED - Memory API only)
-   * @deprecated Not needed for Memory API
-   */
-  deleteChat(chatId) {
-    // No-op
-  }
-
-  /**
-   * List all chats (DEPRECATED - Memory API only)
-   * @deprecated Not needed for Memory API
-   */
-  listChats() {
-    return [];
-  }
-
-  /**
-   * Get chat statistics (DEPRECATED - Memory API only)
-   * @deprecated Not needed for Memory API
-   */
-  getChatStats(chatId) {
-    return { chatId, messageCount: 0 };
   }
 }
 
