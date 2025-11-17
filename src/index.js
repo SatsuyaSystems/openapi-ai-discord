@@ -65,8 +65,9 @@ client.once('ready', async () => {
     if (!openwebuiUserId) {
       console.warn('⚠️ OPENWEBUI_USER_ID not set in .env - Chat Manager will not work');
     } else {
-      chatManager = createChatManager(openwebui, openwebuiUserId);
+      chatManager = createChatManager(openwebui, openwebuiUserId, configManager);
       console.log(`✅ Chat Manager initialized for user ${openwebuiUserId}`);
+      console.log(`📌 Context mode: ${configManager.getContextMode().toUpperCase()}`);
     }
 
     // Initialize Message Handler with Chat Manager
@@ -82,7 +83,7 @@ client.once('ready', async () => {
   }
 
   // Load and register commands (with dependency injection)
-  commands = loadCommands(client, { messageQueue, openwebui });
+  commands = loadCommands(client, { messageQueue, openwebui, configManager });
   await registerCommands(client);
   
   // Set status
@@ -101,7 +102,7 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   try {
-    await command.execute(interaction, { messageQueue, openwebui, chatManager });
+    await command.execute(interaction, { messageQueue, openwebui, chatManager, configManager });
   } catch (error) {
     console.error('❌ Error executing command:', error);
     

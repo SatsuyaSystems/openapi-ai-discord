@@ -152,7 +152,15 @@ class MessageHandler {
       attachmentsCount: message.attachments.size,
     };
 
-    const formattedMessage = `\n[Discord message]\n**Author:** ${metadata.author} (${metadata.authorId})\n**Channel:** ${metadata.channel}\n**Time:** ${new Date(metadata.timestamp).toLocaleString('en-US')}\n**Attachments:** ${metadata.attachmentsCount}\n\n${message.content}`.trim();
+    const contextMode = this.configManager.getContextMode();
+    let messagePrefix = '';
+    
+    // In shared mode, include user metadata so KI knows who sent the message
+    if (contextMode === 'shared') {
+      messagePrefix = `[User: ${metadata.author} (${metadata.authorId})]\n`;
+    }
+
+    const formattedMessage = `\n[Discord message]\n**Author:** ${metadata.author} (${metadata.authorId})\n**Channel:** ${metadata.channel}\n**Time:** ${new Date(metadata.timestamp).toLocaleString('en-US')}\n**Attachments:** ${metadata.attachmentsCount}\n\n${messagePrefix}${message.content}`.trim();
 
     return { formatted: formattedMessage, metadata, content: message.content };
   }

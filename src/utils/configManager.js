@@ -226,6 +226,26 @@ function setAdminOnly(enabled) {
 }
 
 /**
+ * Get context mode: 'shared' or 'private'
+ * shared = all users share one chat
+ * private = each user has their own chat
+ */
+function getContextMode() {
+  const mode = process.env.CONTEXT_MODE || 'shared';
+  return mode === 'private' ? 'private' : 'shared';
+}
+
+/**
+ * Toggle context mode between 'shared' and 'private'
+ */
+function toggleContextMode() {
+  const currentMode = getContextMode();
+  const newMode = currentMode === 'shared' ? 'private' : 'shared';
+  setEnvVariable('CONTEXT_MODE', newMode);
+  return newMode;
+}
+
+/**
  * Load the system prompt from all .txt files in the /prompts folder
  * @returns {string} the combined system prompt
  */
@@ -270,5 +290,7 @@ module.exports = {
   setKeywordEnabled,
   setKeywordTrigger,
   getAdminOnly,
-  setAdminOnly
+  setAdminOnly,
+  getContextMode,
+  toggleContextMode
 };
