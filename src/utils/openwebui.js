@@ -54,28 +54,34 @@ class OpenWebUIClient {
    * @param {string} systemPrompt - system prompt
    * @param {array} chatHistory - previous messages history
    * @param {string} chatId - optional chat ID for persistence
+   * @param {array} tools - optional tool definitions
+   * @param {object} toolManager - optional tool manager instance for execution
    * @returns {Promise<string>} bot reply
    */
-  async chat(userMessage, systemPrompt, chatHistory = [], chatId = null) {
+  async chat(userMessage, systemPrompt, chatHistory = [], chatId = null, tools = [], toolManager = null) {
     try {
       // Prepare messages with system prompt
-      const messages = [
-        {
+      // If chatHistory already has system prompt, don't add it again
+      const messages = [...chatHistory];
+
+      // Add system prompt if not present
+      if (!messages.some(m => m.role === 'system')) {
+        messages.unshift({
           role: 'system',
           content: systemPrompt,
-        },
-        ...chatHistory, // Bisherige Konversation
-        {
+        });
+      }
+
+      // Add user message if provided (might be null in recursive calls)
+      if (userMessage) {
+        messages.push({
           role: 'user',
           content: userMessage,
-        },
-      ];
+        });
+      }
 
       console.log(
-        `📤 Sending to OpenWebUI: ${userMessage.substring(0, 50)}...`
-      );
-      console.log(
-        `   Chat context: ${chatHistory.length} previous messages${chatId ? ` | Chat ID: ${chatId}` : ''}`
+        `📤 Sending to OpenWebUI: ${userMessage ? userMessage.substring(0, 50) : 'Tool Result'}...`
       );
 
       // Sende zu OpenWebUI
@@ -86,6 +92,11 @@ class OpenWebUIClient {
         top_p: 0.9,
         max_tokens: 2000,
       };
+
+      // Add tools if available
+      if (tools && tools.length > 0) {
+        payload.tools = tools;
+      }
 
       // Add chat_id if provided (for message persistence in OpenWebUI)
       if (chatId) {
@@ -103,11 +114,50 @@ class OpenWebUIClient {
         timeout: this.timeout,
       });
 
-      // Extract reply
-      const botResponse = response.data.choices[0].message.content;
+      // Check for tool calls
+      const choice = response.data.choices[0];
+      const message = choice.message;
+
+      // If the model wants to call a tool
+      if (message.tool_calls && message.tool_calls.length > 0) {
+        console.log(`🛠️ Model requested ${message.tool_calls.length} tool calls`);
+
+        // Add the assistant's message with tool_calls to history
+        messages.push(message);
+
+        // Execute each tool
+        for (const toolCall of message.tool_calls) {
+          const functionName = toolCall.function.name;
+          const functionArgs = JSON.parse(toolCall.function.arguments);
+          const callId = toolCall.id;
+
+          console.log(`▶️ Executing tool: ${functionName}`);
+
+          let result = "Error: Tool execution failed";
+          if (toolManager) {
+            result = await toolManager.executeTool(functionName, functionArgs);
+          } else {
+            result = "Error: ToolManager not provided";
+          }
+
+          // Add tool result to history
+          messages.push({
+            role: 'tool',
+            tool_call_id: callId,
+            name: functionName,
+            content: result
+          });
+        }
+
+        // Recursively call chat with updated history (no new user message)
+        return this.chat(null, systemPrompt, messages, chatId, tools, toolManager);
+      }
+
+      // Normal response
+      const botResponse = message.content;
 
       console.log(
-        `📥 Reply received: ${botResponse.substring(0, 50)}...`
+        `📥 Reply received: ${botResponse ? botResponse.substring(0, 50) : 'Empty'}...`
       );
       return botResponse;
     } catch (error) {
@@ -134,11 +184,11 @@ class OpenWebUIClient {
           title: title
         }
       };
-      
+
       console.log(`📤 Creating chat with title: ${title}`);
-      
+
       const response = await this.axiosInstance.post('/api/v1/chats/new', payload);
-      
+
       console.log(`💬 Chat created: ${response.data.id} - ${title}`);
       return response.data;
     } catch (error) {
@@ -159,14 +209,14 @@ class OpenWebUIClient {
   async getUserChats(userId) {
     try {
       const response = await this.axiosInstance.get(`/api/v1/chats/list/user/${userId}`);
-      
+
       let chats = [];
       if (Array.isArray(response.data)) {
         chats = response.data;
       } else if (response.data?.chats && Array.isArray(response.data.chats)) {
         chats = response.data.chats;
       }
-      
+
       console.log(`📋 Retrieved ${chats.length} chats for user ${userId}`);
       return chats;
     } catch (error) {
@@ -183,34 +233,34 @@ class OpenWebUIClient {
   async getChat(chatId) {
     try {
       const response = await this.axiosInstance.get(`/api/v1/chats/${chatId}`);
-      
+
       const chatData = response.data;
       console.log(`📖 Retrieved chat ${chatId} from OpenWebUI`);
-      
+
       // Extract messages from the proper location: chat.history.messages
       let messageArray = [];
-      
-      if (chatData.chat && 
-          typeof chatData.chat === 'object' && 
-          chatData.chat.history && 
-          chatData.chat.history.messages) {
+
+      if (chatData.chat &&
+        typeof chatData.chat === 'object' &&
+        chatData.chat.history &&
+        chatData.chat.history.messages) {
         // Convert the message dictionary to an array, sorted by timestamp
         messageArray = Object.values(chatData.chat.history.messages)
           .filter(msg => msg && typeof msg === 'object' && msg.role && msg.content)
           .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-        
+
         console.log(`   Found ${messageArray.length} messages in chat.history.messages`);
       } else if (chatData.chat && Array.isArray(chatData.chat.messages)) {
         // Fallback: messages might be in chat.messages array
         messageArray = chatData.chat.messages
           .filter(msg => msg && typeof msg === 'object' && msg.role && msg.content)
           .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-        
+
         console.log(`   Found ${messageArray.length} messages in chat.messages array`);
       } else {
         console.log(`   Chat has no messages`);
       }
-      
+
       chatData.messages = messageArray;
       return chatData;
     } catch (error) {
@@ -232,7 +282,7 @@ class OpenWebUIClient {
   async deleteChat(chatId) {
     try {
       const response = await this.axiosInstance.delete(`/api/v1/chats/${chatId}`);
-      
+
       console.log(`🗑️ Chat deleted: ${chatId}`);
       return true;
     } catch (error) {
@@ -253,13 +303,13 @@ class OpenWebUIClient {
   async addChatMessage(chatId, messageId, content, role = 'user') {
     try {
       console.log(`📝 Adding ${role} message to chat ${chatId}`);
-      
+
       // Get current chat to preserve existing messages and structure
       const currentChat = await this.getChat(chatId);
       if (!currentChat) {
         throw new Error(`Failed to load chat ${chatId}`);
       }
-      
+
       // Ensure the chat structure exists
       if (!currentChat.chat) {
         currentChat.chat = {};
@@ -270,13 +320,13 @@ class OpenWebUIClient {
       if (!currentChat.chat.history.messages) {
         currentChat.chat.history.messages = {};
       }
-      
+
       // Find the last message to set as parent
       const allMessages = Object.values(currentChat.chat.history.messages);
-      const lastMessage = allMessages.length > 0 
-        ? allMessages[allMessages.length - 1] 
+      const lastMessage = allMessages.length > 0
+        ? allMessages[allMessages.length - 1]
         : null;
-      
+
       // Create the new message with proper OpenWebUI structure
       const newMessage = {
         id: messageId,
@@ -287,33 +337,33 @@ class OpenWebUIClient {
         timestamp: Math.floor(Date.now() / 1000), // Unix timestamp in seconds
         models: currentChat.chat.models || ['gpt-5-mini']
       };
-      
+
       // Update parent's childrenIds if there is one
       if (lastMessage) {
         lastMessage.childrenIds = [messageId];
       }
-      
+
       // Add the new message
       currentChat.chat.history.messages[messageId] = newMessage;
-      
+
       // Update currentId to the new message
       currentChat.chat.history.currentId = messageId;
-      
+
       // Also update the flat messages array if it exists
       if (Array.isArray(currentChat.chat.messages)) {
         currentChat.chat.messages.push(newMessage);
       }
-      
+
       // Send update back to OpenWebUI
       const updatePayload = {
         chat: currentChat.chat
       };
-      
+
       const response = await this.axiosInstance.post(
         `/api/v1/chats/${chatId}`,
         updatePayload
       );
-      
+
       console.log(`✅ ${role.toUpperCase()} message added to chat: ${messageId}`);
       return response.data;
     } catch (error) {
@@ -321,8 +371,8 @@ class OpenWebUIClient {
       if (error.response) {
         console.error(`   Status: ${error.response.status}`);
         if (error.response.data) {
-          const errorData = typeof error.response.data === 'string' 
-            ? error.response.data 
+          const errorData = typeof error.response.data === 'string'
+            ? error.response.data
             : JSON.stringify(error.response.data);
           console.error(`   Data: ${errorData.substring(0, 200)}`);
         }

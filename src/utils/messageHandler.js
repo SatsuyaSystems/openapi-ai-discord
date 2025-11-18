@@ -7,10 +7,11 @@ const { v4: uuidv4 } = require('uuid');
  * Each Discord user gets their own Chat for persistent context
  */
 class MessageHandler {
-  constructor(openwebui, configManager, chatManager) {
+  constructor(openwebui, configManager, chatManager, toolManager) {
     this.openwebui = openwebui;
     this.configManager = configManager;
     this.chatManager = chatManager;
+    this.toolManager = toolManager;
     this._getChannelFn = null; // injected function to fetch channels
   }
 
@@ -77,8 +78,18 @@ class MessageHandler {
         message.author.id
       );
 
-      // Send to OpenWebUI with chat ID
-      const response = await this.openwebui.chat(formatted, enhancedSystemPrompt, chatHistory, chat.id);
+      // Get tool definitions
+      const tools = this.toolManager ? this.toolManager.getToolDefinitions() : [];
+
+      // Send to OpenWebUI with chat ID and tools
+      const response = await this.openwebui.chat(
+        formatted,
+        enhancedSystemPrompt,
+        chatHistory,
+        chat.id,
+        tools,
+        this.toolManager
+      );
 
       // Manually save USER message to chat
       try {
@@ -154,7 +165,7 @@ class MessageHandler {
 
     const contextMode = this.configManager.getContextMode();
     let messagePrefix = '';
-    
+
     // In shared mode, include user metadata so KI knows who sent the message
     if (contextMode === 'shared') {
       messagePrefix = `[User: ${metadata.author} (${metadata.authorId})]\n`;

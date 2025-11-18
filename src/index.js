@@ -8,6 +8,7 @@ const OpenWebUIClient = require('./utils/openwebui');
 const MessageQueue = require('./utils/messageQueue');
 const MessageHandler = require('./utils/messageHandler');
 const createChatManager = require('./utils/chatManager');
+const toolManager = require('./utils/toolManager');
 const { formatMessageWithMetadata, formatResponseForDiscord } = require('./utils/messageFormatter');
 
 // Initialization
@@ -43,7 +44,7 @@ let commands;
 // Bot behavior
 client.once('ready', async () => {
   console.log(`✅ Bot logged in as ${client.user.tag}`);
-  
+
   // Test OpenWebUI connection first
   try {
     const webUIConfig = configManager.getOpenWebUIConfig();
@@ -52,7 +53,7 @@ client.once('ready', async () => {
       webUIConfig.apiKey,
       webUIConfig.model
     );
-    
+
     const connected = await openwebui.checkHealth();
     if (connected) {
       console.log(`✅ OpenWebUI connected: ${webUIConfig.baseUrl}`);
@@ -70,22 +71,25 @@ client.once('ready', async () => {
       console.log(`📌 Context mode: ${configManager.getContextMode().toUpperCase()}`);
     }
 
-    // Initialize Message Handler with Chat Manager
-    messageHandler = new MessageHandler(openwebui, configManager, chatManager);
+    // Initialize Message Handler with Chat Manager and Tool Manager
+    messageHandler = new MessageHandler(openwebui, configManager, chatManager, toolManager);
     messageHandler.setChannelGetter((channelId) => client.channels.fetch(channelId));
-    
+
+    // Load tools
+    toolManager.loadTools();
+
     console.log(`✅ Message handler initialized`);
     console.log(`📨 Message queue running (max 3 retries, 5s delay)`);
     console.log(`💬 Chat System active - Per-user persistent chats enabled`);
-    
+
   } catch (error) {
     console.error('❌ Error loading OpenWebUI config:', error);
   }
 
   // Load and register commands (with dependency injection)
-  commands = loadCommands(client, { messageQueue, openwebui, configManager });
+  commands = loadCommands(client, { messageQueue, openwebui, configManager, toolManager });
   await registerCommands(client);
-  
+
   // Set status
   client.user.setActivity('for @mentions and messages', { type: 'LISTENING' });
 });
@@ -105,12 +109,12 @@ client.on('interactionCreate', async (interaction) => {
     await command.execute(interaction, { messageQueue, openwebui, chatManager, configManager });
   } catch (error) {
     console.error('❌ Error executing command:', error);
-    
+
     const reply = {
       content: '❌ There was an error executing this command!',
       flags: 64 // ephemeral flag
     };
-    
+
     if (interaction.replied) {
       await interaction.followUp(reply);
     } else {
