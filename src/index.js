@@ -139,8 +139,15 @@ client.on('messageCreate', async (message) => {
   const hasKeyword = keywordConfig.enabled &&
     message.content.toLowerCase().includes(keywordConfig.trigger.toLowerCase());
 
-  // Respond to DMs, @mentions, listener channels or keywords
+  // ✅ UPDATED: Ignore @everyone and @here mentions, but respond to keywords and direct bot mentions
+  const hasEveryoneOrHere = message.mentions.has('@everyone') || message.mentions.has('@here') || 
+                            message.content.includes('@everyone') || message.content.includes('@here');
+  
+  // Respond to DMs, @mentions (but not @everyone/@here), listener channels or keywords
   if (!isDM && !isMention && !isListenerChannel && !hasKeyword) return;
+  
+  // BUT: If it's @everyone or @here, ignore it
+  if (hasEveryoneOrHere && !isMention) return;
 
   // Extra debug logs for messages that will be processed
   console.log(`🔍 Channel Type: ${channelType} | ChannelType.DM: ${ChannelType.DM}`);

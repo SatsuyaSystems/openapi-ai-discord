@@ -112,29 +112,38 @@ class MessageHandler {
       const formattedResponses = this.formatResponseForDiscord(response);
 
       // send replies (first message as reply/send, following as follow-ups)
-      if (Array.isArray(formattedResponses)) {
-        let firstReply = null;
-        for (let i = 0; i < formattedResponses.length; i++) {
-          const resp = formattedResponses[i];
-          if (i === 0) {
-            if (message.channel && (message.channel.type === ChannelType.DM || message.channel.type === 1 || String(message.channel.type).toUpperCase() === 'DM')) {
+      // formattedResponses is now ALWAYS an array
+      if (formattedResponses.length > 1) {
+        console.log(`📨 Response too long, splitting into ${formattedResponses.length} chunks...`);
+      }
+
+      let firstReply = null;
+      for (let i = 0; i < formattedResponses.length; i++) {
+        const resp = formattedResponses[i];
+        const isFirstMessage = (i === 0);
+        const chunkInfo = formattedResponses.length > 1 ? ` [${i + 1}/${formattedResponses.length}]` : '';
+
+        try {
+          if (message.channel && (message.channel.type === ChannelType.DM || message.channel.type === 1 || String(message.channel.type).toUpperCase() === 'DM')) {
+            // DM: Send directly
+            if (isFirstMessage) {
               firstReply = await channel.send({ content: resp });
             } else {
-              firstReply = await message.reply({ content: resp, allowedMentions: { repliedUser: false } });
+              await channel.send({ content: resp });
             }
           } else {
-            if (message.channel && (message.channel.type === ChannelType.DM || message.channel.type === 1 || String(message.channel.type).toUpperCase() === 'DM')) {
-              await channel.send({ content: resp });
+            // Guild: Reply to original message or thread subsequent messages
+            if (isFirstMessage) {
+              firstReply = await message.reply({ content: resp, allowedMentions: { repliedUser: false } });
             } else {
               await firstReply.reply({ content: resp, allowedMentions: { repliedUser: false } });
             }
           }
-        }
-      } else {
-        if (message.channel && (message.channel.type === ChannelType.DM || message.channel.type === 1 || String(message.channel.type).toUpperCase() === 'DM')) {
-          await channel.send({ content: formattedResponses });
-        } else {
-          await message.reply({ content: formattedResponses, allowedMentions: { repliedUser: false } });
+          
+          console.log(`✅ Message sent${chunkInfo} (${resp.length} chars)`);
+        } catch (error) {
+          console.error(`❌ Error sending message chunk ${i + 1}:`, error.message);
+          throw error;
         }
       }
 
@@ -177,21 +186,49 @@ class MessageHandler {
   }
 
   formatResponseForDiscord(response, maxLength = 2000) {
-    if (!response) return '';
-    if (response.length <= maxLength) return response;
+    if (!response) return [];
+    
+    // If response fits in one message, return as array with single element
+    if (response.length <= maxLength) {
+      return [response];
+    }
 
+    // Split into chunks, preferring line breaks to keep messages readable
     const chunks = [];
+    const lines = response.split('\n');
     let current = '';
-    response.split('\n').forEach(line => {
-      if ((current + line).length <= maxLength) {
-        current += line + '\n';
+
+    for (const line of lines) {
+      // If adding this line would exceed limit
+      if (current && (current + '\n' + line).length > maxLength) {
+        // Save current chunk and start new one
+        chunks.push(current.trim());
+        current = line;
       } else {
-        if (current) chunks.push(current.trim());
-        current = line + '\n';
+        // Add line to current chunk
+        current = current ? current + '\n' + line : line;
       }
-    });
-    if (current) chunks.push(current.trim());
-    return chunks;
+    }
+
+    // Don't forget the last chunk
+    if (current) {
+      chunks.push(current.trim());
+    }
+
+    // Fallback: if a single line is too long, split by character
+    const finalChunks = [];
+    for (const chunk of chunks) {
+      if (chunk.length > maxLength) {
+        // Split this chunk by characters
+        for (let i = 0; i < chunk.length; i += maxLength) {
+          finalChunks.push(chunk.substring(i, i + maxLength));
+        }
+      } else {
+        finalChunks.push(chunk);
+      }
+    }
+
+    return finalChunks;
   }
 
   /**
