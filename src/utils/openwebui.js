@@ -16,6 +16,15 @@ class OpenWebUIClient {
   }
 
   /**
+   * Set a new model as active
+   * @param {string} modelId - The model ID to switch to
+   */
+  setModel(modelId) {
+    this.model = modelId;
+    console.log(`🔄 Model switched to: ${modelId}`);
+  }
+
+  /**
    * Create a configured axios instance with auth headers
    */
   createAxiosInstance() {
