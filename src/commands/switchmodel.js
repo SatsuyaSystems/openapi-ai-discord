@@ -32,7 +32,7 @@ module.exports = {
     if (!configManager.isAdmin(interaction.user.id)) {
       return interaction.reply({ 
         content: '❌ You do not have permission to run this command!', 
-        ephemeral: true 
+        flags: 64 
       });
     }
 
@@ -86,7 +86,7 @@ async function validateModel(baseUrl, apiKey, modelId) {
  * Handle the 'set' subcommand
  */
 async function handleSetModel(interaction, openwebui, configManager) {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: 64 });
 
   const modelId = interaction.options.getString('model_id');
   const openwebuiConfig = configManager.getOpenWebUIConfig();
@@ -101,12 +101,14 @@ async function handleSetModel(interaction, openwebui, configManager) {
   if (!validation.valid) {
     return interaction.editReply({
       content: `❌ Model validation failed: ${validation.error}\n\nPlease check the model ID and try again.`,
-      ephemeral: true
+      flags: 64
     });
   }
 
   const modelData = validation.data;
-  const baseModel = modelData.base_model_id || 'Unknown';
+  const baseModel = modelData.base_model_id || modelData.baseModel || 'Unknown';
+  const modelName = modelData.id || modelData.name || modelId;
+  const isActive = modelData.is_active !== false ? '✅ Yes' : '❌ No';
 
   // Update .env
   configManager.setEnvVariable('OPENWEBUI_MODEL', modelId);
@@ -120,28 +122,28 @@ async function handleSetModel(interaction, openwebui, configManager) {
 
   // Create a nice embed response
   const embed = new EmbedBuilder()
-    .setColor('GREEN')
+    .setColor(0x00FF00) // Green
     .setTitle('✅ Model Switched Successfully')
     .addFields(
-      { name: 'Model ID', value: `\`${modelData.id}\``, inline: true },
+      { name: 'Model ID', value: `\`${modelName}\``, inline: true },
       { name: 'Base Model', value: `\`${baseModel}\``, inline: true },
-      { name: 'Active', value: modelData.is_active ? '✅ Yes' : '❌ No', inline: true }
+      { name: 'Active', value: isActive, inline: true }
     )
     .setTimestamp();
 
-  return interaction.editReply({ embeds: [embed], ephemeral: true });
+  return interaction.editReply({ embeds: [embed], flags: 64 });
 }
 
 /**
  * Handle the 'current' subcommand
  */
 async function handleCurrentModel(interaction, configManager) {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: 64 });
 
   const openwebuiConfig = configManager.getOpenWebUIConfig();
 
   const embed = new EmbedBuilder()
-    .setColor('BLUE')
+    .setColor(0x0099FF) // Blue
     .setTitle('🤖 Currently Active Model')
     .addFields(
       { name: 'Model ID', value: `\`${openwebuiConfig.model}\``, inline: false },
@@ -149,14 +151,14 @@ async function handleCurrentModel(interaction, configManager) {
     )
     .setTimestamp();
 
-  return interaction.editReply({ embeds: [embed], ephemeral: true });
+  return interaction.editReply({ embeds: [embed], flags: 64 });
 }
 
 /**
  * Handle the 'list' subcommand - fetch all available models
  */
 async function handleListModels(interaction, configManager) {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: 64 });
 
   const openwebuiConfig = configManager.getOpenWebUIConfig();
 
@@ -172,19 +174,36 @@ async function handleListModels(interaction, configManager) {
       }
     );
 
-    const models = response.data.data || response.data || [];
+    let models = [];
+    
+    // Try different response structures
+    if (Array.isArray(response.data)) {
+      models = response.data;
+    } else if (Array.isArray(response.data.data)) {
+      models = response.data.data;
+    } else if (Array.isArray(response.data.models)) {
+      models = response.data.models;
+    } else if (response.data && typeof response.data === 'object') {
+      // Try to get models from any property that is an array
+      for (const [key, value] of Object.entries(response.data)) {
+        if (Array.isArray(value)) {
+          models = value;
+          break;
+        }
+      }
+    }
 
     if (!Array.isArray(models) || models.length === 0) {
       return interaction.editReply({
-        content: '❌ No models found',
-        ephemeral: true
+        content: `❌ No models found. Response structure: ${Object.keys(response.data).join(', ')}`,
+        flags: 64
       });
     }
 
     // Group models into chunks of 25 fields (Discord limit per embed)
     const embeds = [];
     let currentEmbed = new EmbedBuilder()
-      .setColor('PURPLE')
+      .setColor(0x9D4EDD) // Purple
       .setTitle('📋 Available Models')
       .setTimestamp();
 
@@ -193,7 +212,7 @@ async function handleListModels(interaction, configManager) {
 
     for (const model of models) {
       const modelId = model.id || model.name || 'Unknown';
-      const baseModel = model.base_model_id || 'N/A';
+      const baseModel = model.base_model_id || model.baseModel || 'N/A';
       const isActive = modelId === currentModel ? '✅' : '⚪';
       
       const fieldValue = `Base: \`${baseModel}\`\nActive: ${isActive}`;
@@ -210,7 +229,7 @@ async function handleListModels(interaction, configManager) {
       if (fieldCount >= 25) {
         embeds.push(currentEmbed);
         currentEmbed = new EmbedBuilder()
-          .setColor('PURPLE')
+          .setColor(0x9D4EDD) // Purple
           .setTitle('📋 Available Models (continued)')
           .setTimestamp();
         fieldCount = 0;
@@ -222,13 +241,12 @@ async function handleListModels(interaction, configManager) {
       embeds.push(currentEmbed);
     }
 
-    return interaction.editReply({ embeds: embeds, ephemeral: true });
+    return interaction.editReply({ embeds: embeds, flags: 64 });
 
   } catch (error) {
-    console.error('Error fetching models:', error.message);
     return interaction.editReply({
       content: `❌ Failed to fetch models: ${error.message}`,
-      ephemeral: true
+      flags: 64
     });
   }
 }
